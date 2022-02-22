@@ -387,6 +387,7 @@ int cariboulite_init_submodules (cariboulite_st* sys)
 			sys->ext_ref_settings.src = cariboulite_ext_ref_src_na;
     		sys->ext_ref_settings.freq_hz = 0;
             cariboulite_setup_ext_ref (sys, cariboulite_ext_ref_off);
+			break;
 		default:
 			ZF_LOGE("Unknown board type - we sheuldn't get here");
 			break;
@@ -431,7 +432,7 @@ int cariboulite_self_test(cariboulite_st* sys, cariboulite_self_test_result_st* 
     
     uint8_t modem_pn = 0, modem_vn = 0;
     at86rf215_get_versions(&sys->modem, &modem_pn, &modem_vn);
-    if (modem_pn != 0x34)
+    if (modem_pn != 0x35)
     {
         ZF_LOGE("The assembled modem is not AT86RF215 (product number: 0x%02x)", modem_pn);
         res->modem_fail = 1;
@@ -566,7 +567,8 @@ int cariboulite_init_driver_minimal(cariboulite_st *sys, cariboulite_board_info_
 	// External Configurations
 	// FPGA Init
 	//------------------------------------------------------
-    if (cariboulite_configure_fpga (sys, cariboulite_firmware_source_blob, NULL/*sys->firmware_path_operational*/) != 0)
+    if (cariboulite_configure_fpga (sys, cariboulite_firmware_source_file, "/tmp/top.bin") != 0)
+    //if (cariboulite_configure_fpga (sys, cariboulite_firmware_source_blob, NULL/*sys->firmware_path_operational*/) != 0)
     {
         cariboulite_release_io (sys);
         return -cariboulite_fpga_configuration_failed;

@@ -62,7 +62,7 @@ module lvds_rx
                     end
 
                     r_phase_count <= 3'b111;
-					r_data <= 0;
+					r_data <= 2'b10;
                     r_push <= 1'b0;
                 end
 

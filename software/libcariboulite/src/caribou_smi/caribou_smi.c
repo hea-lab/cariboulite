@@ -391,13 +391,14 @@ int caribou_smi_search_offset(uint8_t *buff, int len)
 {
 	bool succ = false;
 	int off = 0;
-	while (!succ)
+	while (!succ && off < 8)
 	{
-		if ( (buff[off + 0] & 0xC0) == 0xC0 && 
-			 (buff[off + 4] & 0xC0) == 0xC0 &&
-			 (buff[off + 8] & 0xC0) == 0xC0 &&
-			 (buff[off + 12] & 0xC0) == 0xC0 )
+		if ( (buff[off + 0] & 0x80) == 0x80 && 
+			 (buff[off + 4] & 0x80) == 0x80 &&
+			 (buff[off + 8] & 0x80) == 0x80 &&
+			 (buff[off + 12] & 0x80) == 0x80 ) {
 			 return off;
+		}
 		off ++;
 	}
 	return -1;
@@ -491,18 +492,20 @@ void caribou_smi_convert_data(uint8_t *buffer,
 
 	for (unsigned int i = 0; i < length_bytes/4; i++)
 	{
-		uint32_t s = (samples[i]);
+		//uint32_t s = (samples[i]);
+		cmplx_vec[i].i = ((buffer[i*4] & 0x3f) << 7) + (buffer[i*4 + 1] >> 1) ;
+		cmplx_vec[i].q = ((buffer[i*4 + 2] & 0x3f) << 7) + (buffer[i*4 + 3] >> 1) ;
 
-		/*meta_vec[i].sync2 = s & 0x00000001; */s >>= 1;
-		cmplx_vec[i].q = s & 0x00001FFF; s >>= 13;
-		s >>= 2;
-		/*meta_vec[i].sync1 = s & 0x00000001; */s >>= 1;
-		cmplx_vec[i].i = s & 0x00001FFF; s >>= 13;
-		//meta_vec[i].cnt = s & 0x00000003; s >>= 2;
-		if (s != 0x0)
-		{
-			num_sync_errors++;
-		}
+		///*meta_vec[i].sync2 = s & 0x00000001; */s >>= 1;
+		//cmplx_vec[i].q = s & 0x00001FFF; s >>= 13;
+		//s >>= 2;
+		///*meta_vec[i].sync1 = s & 0x00000001; */s >>= 1;
+		//cmplx_vec[i].i = s & 0x00001FFF; s >>= 13;
+		////meta_vec[i].cnt = s & 0x00000003; s >>= 2;
+		//if (s != 0x0)
+		//{
+		//	num_sync_errors++;
+		//}
 
 		if (cmplx_vec[i].i >= (int16_t)0x1000) cmplx_vec[i].i -= (int16_t)0x2000;
         if (cmplx_vec[i].q >= (int16_t)0x1000) cmplx_vec[i].q -= (int16_t)0x2000;
@@ -510,7 +513,7 @@ void caribou_smi_convert_data(uint8_t *buffer,
 		// TODO: calculate the cnt gaps
 	}
 
-	if (ptr)
+	if (false && ptr)
 	{
 		for (int k = 0; k < 64; k ++)
 		{
@@ -548,14 +551,15 @@ void* caribou_smi_analyze_thread(void* arg)
 		TIMING_PERF_SYNC_TICK;
         if (!st->read_analysis_thread_running) break;
 
-		/*offset =  caribou_smi_search_offset(st->current_app_buffer, 16);
+		offset =  caribou_smi_search_offset(st->current_app_buffer, 16);
 		if (offset == -1)
 		{
 			ZF_LOGE("Offset error!");
 			dump_hex(st->current_app_buffer, 60);
-		}*/
+		}
 		current_data_size = st->read_ret_value;
-		//if (offset != 0) current_data_size -= 4;
+		if (offset != 0) current_data_size -= 4;
+
 
 		caribou_smi_convert_data(st->current_app_buffer + offset, 
 								current_data_size, 

@@ -22,5 +22,11 @@ add_executable(caribou_dump1090
 	modes.c
 )
 
+add_executable(dump870
+    dump870.cpp
+)
+
 target_link_libraries(caribou_dump1090 SoapySDR iir_static)
+
+target_link_libraries(dump870 SoapySDR)
 #install(TARGETS caribou_dump1090 DESTINATION ${CMAKE_INSTALL_BINDIR})

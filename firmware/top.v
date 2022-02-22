@@ -38,7 +38,7 @@ module top(
       // DIGITAL I/F
       input [3:0] i_config,
       input i_button,
-      inout [7:0] io_pmod,
+      //inout [7:0] io_pmod,
       output o_led0,
       output o_led1,
 
@@ -294,41 +294,41 @@ module top(
       .empty_o (w_rx_09_fifo_empty)
    );
 
-   lvds_rx lvds_rx_24_inst
-   (
-      .i_reset (w_soft_reset),
-      .i_ddr_clk (lvds_clock_buf),
+   //lvds_rx lvds_rx_24_inst
+   //(
+   //   .i_reset (w_soft_reset),
+   //   .i_ddr_clk (lvds_clock_buf),
 
-      // test reversed LSB / MSB
-      // -----------------------
-      .i_ddr_data ({!w_lvds_rx_24_d1, !w_lvds_rx_24_d0}),
+   //   // test reversed LSB / MSB
+   //   // -----------------------
+   //   .i_ddr_data ({!w_lvds_rx_24_d1, !w_lvds_rx_24_d0}),
 
-      .i_fifo_full (w_rx_24_fifo_full),
-      .o_fifo_write_clk (w_rx_24_fifo_write_clk),
-      .o_fifo_push (w_rx_24_fifo_push),
-      
-      // Test bypass input data to FIFO
-      // ------------------------------
-      .o_fifo_data (w_rx_24_fifo_data),
-      //.o_fifo_data (),
-      
-      .o_debug_state ()
-   );
+   //   .i_fifo_full (w_rx_24_fifo_full),
+   //   .o_fifo_write_clk (w_rx_24_fifo_write_clk),
+   //   .o_fifo_push (w_rx_24_fifo_push),
+   //   
+   //   // Test bypass input data to FIFO
+   //   // ------------------------------
+   //   .o_fifo_data (w_rx_24_fifo_data),
+   //   //.o_fifo_data (),
+   //   
+   //   .o_debug_state ()
+   //);
 
    //assign w_rx_24_fifo_data = 32'hA5A5A500;
 
-   complex_fifo rx_24_fifo(
-      .wr_rst_i (w_soft_reset),
-      .wr_clk_i (w_rx_24_fifo_write_clk),
-      .wr_en_i (w_rx_24_fifo_push),
-      .wr_data_i (w_rx_24_fifo_data),
-      .rd_rst_i (w_soft_reset),
-      .rd_clk_i (w_clock_sys),
-      .rd_en_i (w_rx_24_fifo_pull),
-      .rd_data_o (w_rx_24_fifo_pulled_data),
-      .full_o (w_rx_24_fifo_full),
-      .empty_o (w_rx_24_fifo_empty)
-   );
+   //complex_fifo rx_24_fifo(
+   //   .wr_rst_i (w_soft_reset),
+   //   .wr_clk_i (w_rx_24_fifo_write_clk),
+   //   .wr_en_i (w_rx_24_fifo_push),
+   //   .wr_data_i (w_rx_24_fifo_data),
+   //   .rd_rst_i (w_soft_reset),
+   //   .rd_clk_i (w_clock_sys),
+   //   .rd_en_i (w_rx_24_fifo_pull),
+   //   .rd_data_o (w_rx_24_fifo_pulled_data),
+   //   .full_o (w_rx_24_fifo_full),
+   //   .empty_o (w_rx_24_fifo_empty)
+   //);
 
    smi_ctrl smi_ctrl_ins
    (

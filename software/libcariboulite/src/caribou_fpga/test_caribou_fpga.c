@@ -70,7 +70,7 @@ int main ()
     int led1 = 0;
     int btn = 0;
     int cfg = 0;
-    caribou_fpga_get_io_ctrl_dig (&dev, &ldo, &led0, &led1, &btn, &cfg);
+    caribou_fpga_get_io_ctrl_dig (&dev, &led0, &led1, &btn, &cfg);
     printf("IO_CTRL: ldo: %d, led0: %d, led1: %d, btn: %d, cfg: 0x%02X\n", ldo, led0, led1, btn, cfg);
 
     // pmod dir

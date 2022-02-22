@@ -31,8 +31,8 @@ int caribou_smi_check_modules_loaded(char* mod_name)
 
 int caribou_smi_check_modules()
 {
-	int bcm_smi_dev = caribou_smi_check_smi_modules_loaded("bcm2835_smi_dev");
-	int bcm_smi = caribou_smi_check_smi_modules_loaded("bcm2835_smi");
+	int bcm_smi_dev = caribou_smi_check_modules_loaded("bcm2835_smi_dev");
+	int bcm_smi = caribou_smi_check_modules_loaded("bcm2835_smi");
 
 	if (bcm_smi_dev == -1 || bcm_smi == -1)
 	{

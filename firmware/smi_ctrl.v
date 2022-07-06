@@ -16,6 +16,9 @@ module smi_ctrl
         input               i_fifo_09_full,
         input               i_fifo_09_empty,
 
+        output reg          o_fifo_09_push,
+        output reg[31:0]    o_fifo_09_pushed_data,
+        output reg          o_clk,
         // FIFO INTERFACE 2.4 GHz
         output              o_fifo_24_pull,
         input [31:0]        i_fifo_24_pulled_data,
@@ -32,6 +35,9 @@ module smi_ctrl
         output              o_smi_write_req,
         output              o_smi_writing,
         input               i_smi_test,
+        input               i_fifo_full,
+        input[10:0]         i_fifo_fill_level,
+        output              o_dreq,
 
         // Errors
         output reg          o_address_error );
@@ -87,7 +93,8 @@ module smi_ctrl
     end
 
     // Tell the RPI that data is pending in either of the two fifos
-    assign o_smi_read_req = !i_fifo_09_empty || !i_fifo_24_empty /*|| i_smi_test*/;
+    assign o_smi_read_req = 0;
+    //assign o_smi_read_req = !i_fifo_09_empty;
     //assign o_smi_read_req = (!i_fifo_09_empty && (i_smi_a == smi_address_read_900)) || 
     //                        (!i_fifo_24_empty && (i_smi_a == smi_address_read_2400));
     //assign o_smi_read_req = 1'b1;
@@ -95,7 +102,7 @@ module smi_ctrl
     //!i_fifo_09_empty || !i_fifo_24_empty;
 
     reg [4:0] int_cnt_09;
-    reg [4:0] int_cnt_24;
+    reg [4:0] int_cnt;
     reg r_fifo_09_pull;
     reg r_fifo_09_pull_1;
     wire w_fifo_09_pull_trigger;
@@ -103,7 +110,51 @@ module smi_ctrl
     reg r_fifo_24_pull_1;
     wire w_fifo_24_pull_trigger;
     reg [7:0] r_smi_test_count_09;
-    reg [7:0] r_smi_test_count_24;
+    reg [7:0] b3;
+    reg [7:0] b2;
+    reg [7:0] b1;
+    reg [7:0] b0;
+
+
+    wire swe_and_reset;
+    assign swe_and_reset = !i_reset && i_smi_swe_srw;
+
+    initial int_cnt = 5'd31;
+    initial o_clk = 1'b0;
+    initial b0 = 0;
+    initial b1 = 0;
+    initial b2 = 0;
+    initial b3 = 0;
+
+    always @(negedge swe_and_reset)
+    begin
+        if (i_reset) begin
+            int_cnt <= 5'd31;
+            o_fifo_09_push <= 1'b1;
+            o_clk <= 1'b0;
+        end else begin
+
+            case (int_cnt)
+                31: b3 = i_smi_data_in;
+                23: b2 = i_smi_data_in;
+                15: b1 = i_smi_data_in;
+                7: b0 = i_smi_data_in;
+            endcase
+
+            if (int_cnt == 7) begin
+                o_clk <= 1'b1;
+                /* https:
+                * //raw.githubusercontent.com/cariboulabs/cariboulite/main/docs/smi/Secondary%
+                * 20Memory%20Interface.pdf => figure 10*/
+                o_fifo_09_pushed_data <= {b2, b3, b0, b1};
+            end else begin
+                o_clk <= 1'b0;
+            end
+
+            int_cnt <= int_cnt - 8;
+
+        end
+    end
 
     wire soe_and_reset;
     assign soe_and_reset = !i_reset && i_smi_soe_se;
@@ -112,12 +163,10 @@ module smi_ctrl
     begin
         if (i_reset) begin
             int_cnt_09 <= 5'd31;
-            int_cnt_24 <= 5'd31;
             r_smi_test_count_09 <= 8'b00000000;
-            r_smi_test_count_24 <= 8'b00000000;
         end else begin
-            w_fifo_09_pull_trigger <= !i_fifo_09_empty && (int_cnt_09 == 5'd7);
-            w_fifo_24_pull_trigger <= !i_fifo_24_empty && (int_cnt_24 == 5'd7);
+            //w_fifo_09_pull_trigger <= !i_fifo_09_empty && (int_cnt_09 == 5'd7);
+            //w_fifo_24_pull_trigger <= !i_fifo_24_empty && (int_cnt_24 == 5'd7);
 
             if (i_smi_a == smi_address_read_900) begin
                 if ( i_smi_test ) begin
@@ -126,15 +175,6 @@ module smi_ctrl
                 end else begin
                     int_cnt_09 <= int_cnt_09 - 8;
                     o_smi_data_out <= i_fifo_09_pulled_data[int_cnt_09:int_cnt_09-7];
-                end
-
-            end else if (i_smi_a == smi_address_read_2400) begin
-                if ( i_smi_test ) begin
-                    o_smi_data_out <= r_smi_test_count_24;
-                    r_smi_test_count_24 <= r_smi_test_count_24 + 1'b1;
-                end else begin
-                    int_cnt_24 <= int_cnt_24 - 8;
-                    o_smi_data_out <= i_fifo_24_pulled_data[int_cnt_24:int_cnt_24-7];
                 end
             end
 
@@ -160,5 +200,6 @@ module smi_ctrl
     assign o_fifo_09_pull = !r_fifo_09_pull_1 && r_fifo_09_pull && !i_fifo_09_empty;
     assign o_fifo_24_pull = !r_fifo_24_pull_1 && r_fifo_24_pull && !i_fifo_24_empty;
     assign o_smi_writing = i_smi_a[2];
+    assign o_smi_write_req = !i_fifo_full;
 
 endmodule // smi_ctrl

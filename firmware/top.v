@@ -1,21 +1,15 @@
 `include "spi_if.v"
 `include "sys_ctrl.v"
-`include "io_ctrl.v"
 `include "smi_ctrl.v"
 `include "lvds_rx.v"
-`include "complex_fifo.v"
+`include "lvds_tx.v"
+`include "simple_fifo.v"
+`include "afifo.v"
+`include "rx_framer.v"
 
 module top(
       input i_glob_clock,
 
-      // RF FRONT-END PATH
-      output o_rx_h_tx_l,
-      output o_rx_h_tx_l_b,
-      output o_tr_vc1,
-      output o_tr_vc1_b,
-      output o_tr_vc2,
-      output o_shdn_rx_lna,
-      output o_shdn_tx_lna,
 
       // MODEM (LVDS & CLOCK)
       output o_iq_tx_p,
@@ -23,22 +17,10 @@ module top(
       output o_iq_tx_clk_p,
       output o_iq_tx_clk_n,
       input i_iq_rx_09_p,     // Paired with i_iq_rx_09_n - only the 'B' pins need to be specified
-      input i_iq_rx_24_n,     // Paired with i_iq_rx_24_p - only the 'B' pins need to be specified
       input i_iq_rx_clk_p,    // Paired with i_iq_rx_clk_n - only the 'B' pins need to be specified
 
-      // Note: The icestorm (specifically nextpnr) fails to build if both diff pins are constrained
-      //       in the constrain file and the interface herein. Thus we need to take them out so that
-      //       it will "understand" we actually want an LVDS pair inputs. In addition, the pair is
-      //       defined only by the "B" pins in BANK3 and not the "A" pins (which is counter-logical)
-
-      // MIXER
-      output o_mixer_fm,
-      output o_mixer_en,
 
       // DIGITAL I/F
-      input [3:0] i_config,
-      input i_button,
-      //inout [7:0] io_pmod,
       output o_led0,
       output o_led1,
 
@@ -65,6 +47,7 @@ module top(
    reg         r_counter;
    wire        w_clock_spi;
    wire        w_clock_sys;
+   wire        w_clock_smi_tx;
    wire [4:0]  w_ioc;
    wire [7:0]  w_rx_data;
    reg [7:0]   r_tx_data;
@@ -122,37 +105,7 @@ module top(
       .i_load_cmd (w_load),
       .o_soft_reset (w_soft_reset),
 
-      .i_error_list ({o_address_error, 7'b0000000})
-   );
-
-   io_ctrl io_ctrl_ins
-   (
-      .i_reset (w_soft_reset),
-      .i_sys_clk (w_clock_sys),
-      .i_ioc (w_ioc),
-      .i_data_in (w_rx_data),
-      .o_data_out (w_tx_data_io),
-      .i_cs (w_cs[1]),
-      .i_fetch_cmd (w_fetch),
-      .i_load_cmd (w_load),
-
-      /// Digital interfaces
-      .i_button (i_button),
-      .i_config (i_config),
-      .o_led0 (o_led0),
-      .o_led1 (o_led1),
-      .o_pmod (),
-
-      // Analog interfaces
-      .o_mixer_fm (o_mixer_fm),
-      .o_rx_h_tx_l (o_rx_h_tx_l),
-      .o_rx_h_tx_l_b (o_rx_h_tx_l_b),
-      .o_tr_vc1 (o_tr_vc1),
-      .o_tr_vc1_b (o_tr_vc1_b),
-      .o_tr_vc2 (o_tr_vc2),
-      .o_shdn_tx_lna (o_shdn_tx_lna),
-      .o_shdn_rx_lna (o_shdn_rx_lna),
-      .o_mixer_en (o_mixer_en)
+      //.i_error_list (w_debug)
    );
 
    //=========================================================================
@@ -190,34 +143,50 @@ module top(
    wire lvds_clock_buf;    // The clock input after global buffer (improved fanout)
 
    SB_IO #(
-      .PIN_TYPE(6'b000001),         // Input only, direct mode
+       .PIN_TYPE(6'b0000_01),        // Input only, direct mode
       .IO_STANDARD("SB_LVDS_INPUT") // LVDS input
    ) iq_rx_clk (
       .PACKAGE_PIN(i_iq_rx_clk_p),  // Physical connection to 'i_iq_rx_clk_p'
       .D_IN_0 ( lvds_clock ));      // Wire out to 'lvds_clock'
 
-   /*SB_GB lvds_clk_buffer (          // Improve 'lvds_clock' fanout by pushing it into
+   SB_IO #(
+       .PIN_TYPE(6'b0110_00),
+       .IO_STANDARD("SB_LVCMOS") 
+   ) iq_tx_clk_n (
+       .PACKAGE_PIN(o_iq_tx_clk_n),
+       .D_OUT_0 ( ~lvds_clock_buf ));
+
+   SB_IO #(
+       .PIN_TYPE(6'b0110_00),
+       .IO_STANDARD("SB_LVCMOS")
+   ) iq_tx_clk_p (
+       .PACKAGE_PIN(o_iq_tx_clk_p),
+       .D_OUT_0 ( lvds_clock_buf ));
+
+   SB_IO #(
+       .PIN_TYPE(6'b0100_00),
+       .IO_STANDARD("SB_LVCMOS")
+   ) iq_tx_n (
+       .PACKAGE_PIN(o_iq_tx_n),
+       .OUTPUT_CLK (lvds_clock_buf),
+       .D_OUT_0 ( ~d1 ),
+       .D_OUT_1 ( ~d0 ));
+
+   SB_IO #(
+       .PIN_TYPE(6'b0100_00),
+       .IO_STANDARD("SB_LVCMOS")
+   ) iq_tx_p (
+       .PACKAGE_PIN(o_iq_tx_p),
+       .OUTPUT_CLK (lvds_clock_buf),
+       .D_OUT_0 ( d1 ),
+       .D_OUT_1 ( d0 ));
+
+   SB_GB lvds_clk_buffer (          // Improve 'lvds_clock' fanout by pushing it into
                                     // a global high-fanout buffer
       .USER_SIGNAL_TO_GLOBAL_BUFFER (lvds_clock),
       .GLOBAL_BUFFER_OUTPUT(lvds_clock_buf) );
-*/
-   assign lvds_clock_buf = lvds_clock;
 
-   // optional for better fanout: seperate the 09 and the 24 buffers and give them
-   // both a semparate constraint in the pcf file.
-
-   // Differential 2.4GHz I/Q DDR signal
-   SB_IO #(
-      .PIN_TYPE(6'b000000),         // Input only, DDR mode (sample on both pos edge and
-                                    // negedge of the input clock)
-      .IO_STANDARD("SB_LVDS_INPUT"),// LVDS standard
-      .NEG_TRIGGER(1'b0)            // The signal is not negated
-   ) iq_rx_24 (
-      .PACKAGE_PIN(i_iq_rx_24_n),   // Attention: this is the 'n' input, thus the actual values
-                                    //            will need to be negated (PCB layout constraint)
-      .INPUT_CLK (lvds_clock_buf),  // The I/O sampling clock with DDR
-      .D_IN_0 ( w_lvds_rx_24_d1 ),  // the 0 deg data output
-      .D_IN_1 ( w_lvds_rx_24_d0 ) );// the 180 deg data output
+   //assign lvds_clock_buf = lvds_clock;
 
    // Differential 0.9GHz I/Q DDR signal
    SB_IO #(
@@ -237,55 +206,82 @@ module top(
    //=========================================================================
    wire w_lvds_rx_09_d0;   // 0 degree
    wire w_lvds_rx_09_d1;   // 180 degree
-   wire w_lvds_rx_24_d0;   // 0 degree
-   wire w_lvds_rx_24_d1;   // 180 degree
+   reg d0;   // 0 degree
+   reg d1;   // 180 degree
 
    wire w_rx_09_fifo_full;
+   wire w_rx_09_fifo_full2;
    wire w_rx_09_fifo_empty;
+   wire w_rx_09_fifo_empty2;
+   wire w_rx_09_fifo_empty_tx;
    wire w_rx_09_fifo_write_clk;
    wire w_rx_09_fifo_push;
+   wire w_rx_09_fifo_push2;
    wire [31:0] w_rx_09_fifo_data;
+   wire [31:0] w_rx_09_fifo_data2;
    wire w_rx_09_fifo_pull;
+   wire w_rx_09_fifo_pull2;
+   wire w_rx_09_fifo_pull_tx;
+   wire w_rx_09_fifo_push_tx;
+   wire w_rx_09_fifo_full_tx;
+   wire [31:0] w_rx_09_fifo_data_tx;
    wire [31:0] w_rx_09_fifo_pulled_data;
+   wire [31:0] w_rx_09_fifo_pulled_data2;
+   wire [31:0] w_rx_09_fifo_pulled_data_tx;
 
-   wire w_rx_24_fifo_full;
-   wire w_rx_24_fifo_empty;
-   wire w_rx_24_fifo_write_clk;
-   wire w_rx_24_fifo_push;
-   wire [31:0] w_rx_24_fifo_data;
-   wire w_rx_24_fifo_pull;
-   wire [31:0] w_rx_24_fifo_pulled_data;
+   wire o_clk;
+   wire [10:0] w_fill_level;
 
-   lvds_rx lvds_rx_09_inst
-   (
+   lvds_tx lvds_tx_09_inst(
       .i_reset (w_soft_reset),
       .i_ddr_clk (lvds_clock_buf),
       
-      // test reversed LSB / MSB
-      // -----------------------
-      .i_ddr_data ({w_lvds_rx_09_d1, w_lvds_rx_09_d0}),
-	  //.i_ddr_data ({w_lvds_rx_09_d0, w_lvds_rx_09_d1}),
+      .o_ddr_data ({d1, d0}),
+      .o_read(w_rx_09_fifo_pull_tx),
       
+      .i_empty(w_rx_09_fifo_empty_tx),
+      .i_data(w_rx_09_fifo_pulled_data_tx),
+      .o_led0 (o_led0),
+      .o_led1 (o_led1),
+      .o_clk(o_clk)
+   );
+
+    afifo tx_09_fifo(
+       .i_wrst_n (!w_soft_reset),
+       .i_wclk (w_clock_smi_tx),
+
+       .i_wr (w_rx_09_fifo_push_tx),
+       .i_wdata (w_rx_09_fifo_data_tx),
+
+       .i_rrst_n (!w_soft_reset),
+       .i_rclk (o_clk),
+
+       .i_rd (w_rx_09_fifo_pull_tx),
+       .o_rdata (w_rx_09_fifo_pulled_data_tx),
+       .o_wfull (w_rx_09_fifo_full_tx),
+       .o_rempty (w_rx_09_fifo_empty_tx),
+       .o_wfill_level(w_fill_level)
+   );
+
+   lvds_rx lvds_rx_09_inst(
+      .i_reset (w_soft_reset),
+      .i_ddr_clk (lvds_clock),
+      
+      .i_ddr_data ({w_lvds_rx_09_d1, w_lvds_rx_09_d0}),
       .i_fifo_full (w_rx_09_fifo_full),
       .o_fifo_write_clk (w_rx_09_fifo_write_clk),
       .o_fifo_push (w_rx_09_fifo_push),
       
-      // Test bypass input data to FIFO
-      // ------------------------------
       .o_fifo_data (w_rx_09_fifo_data),
-      //.o_fifo_data (),
       
       .o_debug_state ()
    );
 
-   //assign w_rx_09_fifo_data = 32'h5AC3E7F1;
-   //assign w_rx_09_fifo_pulled_data = 32'b01011010110000111110011111110000;
-
-   complex_fifo rx_09_fifo(
+   simple_fifo rx_09_fifo1(
       .wr_rst_i (w_soft_reset),
       .wr_clk_i (w_rx_09_fifo_write_clk),
       .wr_en_i (w_rx_09_fifo_push),
-      .wr_data_i (w_rx_09_fifo_data),
+      .wr_data_i ({3'b000, w_rx_09_fifo_data[29:17], 3'b000, w_rx_09_fifo_data[13:1]}),
       .rd_rst_i (w_soft_reset),
       .rd_clk_i (w_clock_sys),
       .rd_en_i (w_rx_09_fifo_pull),
@@ -294,41 +290,34 @@ module top(
       .empty_o (w_rx_09_fifo_empty)
    );
 
-   //lvds_rx lvds_rx_24_inst
-   //(
-   //   .i_reset (w_soft_reset),
-   //   .i_ddr_clk (lvds_clock_buf),
+   rx_framer myFramer(
+       .i_reset(w_soft_reset),
+       .i_clk(w_clock_sys),
 
-   //   // test reversed LSB / MSB
-   //   // -----------------------
-   //   .i_ddr_data ({!w_lvds_rx_24_d1, !w_lvds_rx_24_d0}),
+       .o_read(w_rx_09_fifo_pull),
+       .i_empty(w_rx_09_fifo_empty),
+       .i_data(w_rx_09_fifo_pulled_data),
 
-   //   .i_fifo_full (w_rx_24_fifo_full),
-   //   .o_fifo_write_clk (w_rx_24_fifo_write_clk),
-   //   .o_fifo_push (w_rx_24_fifo_push),
-   //   
-   //   // Test bypass input data to FIFO
-   //   // ------------------------------
-   //   .o_fifo_data (w_rx_24_fifo_data),
-   //   //.o_fifo_data (),
-   //   
-   //   .o_debug_state ()
-   //);
+       .o_fifo_push(w_rx_09_fifo_push2),
+       .o_fifo_data(w_rx_09_fifo_data2),
+       .i_fifo_full(w_rx_09_fifo_full2),
+   );
 
-   //assign w_rx_24_fifo_data = 32'hA5A5A500;
+   simple_fifo rx_09_fifo2(
+       .wr_rst_i (w_soft_reset),
+       .wr_clk_i (w_clock_sys),
 
-   //complex_fifo rx_24_fifo(
-   //   .wr_rst_i (w_soft_reset),
-   //   .wr_clk_i (w_rx_24_fifo_write_clk),
-   //   .wr_en_i (w_rx_24_fifo_push),
-   //   .wr_data_i (w_rx_24_fifo_data),
-   //   .rd_rst_i (w_soft_reset),
-   //   .rd_clk_i (w_clock_sys),
-   //   .rd_en_i (w_rx_24_fifo_pull),
-   //   .rd_data_o (w_rx_24_fifo_pulled_data),
-   //   .full_o (w_rx_24_fifo_full),
-   //   .empty_o (w_rx_24_fifo_empty)
-   //);
+       .wr_en_i (w_rx_09_fifo_push2),
+       .wr_data_i (w_rx_09_fifo_data2),
+       .full_o (w_rx_09_fifo_full2), 
+
+       .rd_rst_i (w_soft_reset),
+       .rd_clk_i (w_clock_sys),
+
+       .rd_en_i (w_rx_09_fifo_pull2),
+       .rd_data_o (w_rx_09_fifo_pulled_data2),
+       .empty_o (w_rx_09_fifo_empty2),
+   );
 
    smi_ctrl smi_ctrl_ins
    (
@@ -341,15 +330,14 @@ module top(
       .i_fetch_cmd (w_fetch),
       .i_load_cmd (w_load),
 
-      .o_fifo_09_pull (w_rx_09_fifo_pull),
-      .i_fifo_09_pulled_data (w_rx_09_fifo_pulled_data),
-      .i_fifo_09_full (w_rx_09_fifo_full),
-      .i_fifo_09_empty (w_rx_09_fifo_empty),
+      .o_fifo_09_pull (w_rx_09_fifo_pull2),
+      .i_fifo_09_pulled_data (w_rx_09_fifo_pulled_data2),
+      .i_fifo_09_full (w_rx_09_fifo_full2),
+      .i_fifo_09_empty (w_rx_09_fifo_empty2),
 
-      .o_fifo_24_pull (w_rx_24_fifo_pull),
-      .i_fifo_24_pulled_data (w_rx_24_fifo_pulled_data),
-      .i_fifo_24_full (w_rx_24_fifo_full),
-      .i_fifo_24_empty (w_rx_24_fifo_empty),
+      .o_fifo_09_push(w_rx_09_fifo_push_tx),
+      .o_fifo_09_pushed_data(w_rx_09_fifo_data_tx),
+      .o_clk(w_clock_smi_tx),
 
       .i_smi_a (w_smi_addr),
       .i_smi_soe_se (i_smi_soe_se),
@@ -359,7 +347,10 @@ module top(
       .o_smi_read_req (w_smi_read_req),
       .o_smi_write_req (w_smi_write_req),
       .o_smi_writing (w_smi_writing),
+      .o_dreq (w_dreq),
       .i_smi_test (w_smi_test),
+      .i_fifo_full (w_rx_09_fifo_full_tx),
+      .i_fifo_fill_level (w_fill_level),
       .o_address_error ()
    );
 
@@ -369,25 +360,19 @@ module top(
    wire w_smi_read_req;
    wire w_smi_write_req;
    wire w_smi_writing;
+   wire w_dreq;
    wire w_smi_test;
 
    assign w_smi_test = 1'b0;
    assign w_smi_addr = {i_smi_a3, i_smi_a2, i_smi_a1};
    assign io_smi_data = (w_smi_writing)?w_smi_data_output:8'bZ;
    assign w_smi_data_input = io_smi_data;
-   assign o_smi_write_req = (w_smi_writing)?w_smi_write_req:1'bZ;
-   assign o_smi_read_req = (w_smi_writing)?w_smi_read_req:1'bZ;
 
-   // Testing - output the clock signal (positive and negative) to the PMOD
- //  assign io_pmod[0] = lvds_clock_buf;
-   //assign io_pmod[1] = w_rx_09_fifo_data[30];
-   //assign io_pmod[2] = w_smi_read_req;
-   //assign io_pmod[3] = w_rx_09_fifo_push;
-   //assign io_pmod[4] = w_rx_09_fifo_pull;
-   //assign io_pmod[5] = w_rx_09_fifo_empty;
-   //assign io_pmod[6] = w_rx_09_fifo_full;
-   //assign io_pmod[7] = i_smi_soe_se;
+   //assign o_smi_write_req = (w_smi_writing)? w_smi_write_req :1'bZ;
 
-   //assign io_pmod[7] = w_smi_addr[1];
+   //assign o_smi_read_req = (w_smi_writing)? w_smi_read_req :1'bZ;
+   assign o_smi_write_req = 1'bZ;
+   //assign o_smi_read_req = (w_fill_level < 984) ? 1 : 0;
+   assign o_smi_read_req = (w_fill_level < 500) ? 1 : 0;
 
 endmodule // top

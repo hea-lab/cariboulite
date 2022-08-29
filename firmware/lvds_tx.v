@@ -1,6 +1,6 @@
 module lvds_tx
     (
-		input               i_reset,
+        input               i_reset,
         input               i_ddr_clk,
         input               i_empty,
         input [31:0]        i_data,
@@ -14,13 +14,16 @@ module lvds_tx
     );
 
     reg [3:0]  r_count;
-    reg [6:0]  r_icount;
+    reg [5:0]  r_icount;
     reg [31:0] r_data;
 
-    initial o_clk = 0;
-    initial o_read = 0;
-    initial o_led0 = 0;
-    initial o_led1 = 0;
+    initial begin
+        o_clk = 0;
+        o_read = 0;
+
+        o_led0 = 0;
+        o_led1 = 0;
+    end
 
     always @(negedge i_ddr_clk)
         if (i_reset) begin
@@ -36,7 +39,7 @@ module lvds_tx
             if (r_icount > 32) begin
                 o_clk <= ~o_clk;
 
-                /* TODO check */
+                /* TODO check magic numbers */
                 if (r_count == 8'hd) begin
                     o_read <= ~i_empty;
                 end else begin 
@@ -46,8 +49,8 @@ module lvds_tx
                             r_data <= {2'b10, i_data[28:16], 1'b1, 2'b01, i_data[12:0], 1'b0};
                         end else begin
                             r_data <= 32'h80004000;
-							if (o_led1) 
-								o_led0 <= 1;
+                            if (o_led1)
+                                o_led0 <= 1;
                         end
                     end
                 end

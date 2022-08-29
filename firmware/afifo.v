@@ -1,17 +1,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename: 	afifo.v
+// Filename:    afifo.v
 //
-// Project:	afifo, A formal proof of Cliff Cummings' asynchronous FIFO
+// Project: afifo, A formal proof of Cliff Cummings' asynchronous FIFO
 //
-// Purpose:	This file defines the behaviour of an asynchronous FIFO.
-//		It was originally copied from a paper by Clifford E. Cummings
-//	of Sunburst Design, Inc.  Since then, many of the variable names have
-//	been changed and the logic has been rearranged.  However, the
-//	fundamental logic remains the same.
+// Purpose: This file defines the behaviour of an asynchronous FIFO.
+//      It was originally copied from a paper by Clifford E. Cummings
+//  of Sunburst Design, Inc.  Since then, many of the variable names have
+//  been changed and the logic has been rearranged.  However, the
+//  fundamental logic remains the same.
 //
-// Creator:	Dan Gisselquist, Ph.D.
-//		Gisselquist Technology, LLC
+// Creator: Dan Gisselquist, Ph.D.
+//      Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -48,184 +48,188 @@
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
 //
-// License:	GPL, v3, as defined and found on www.gnu.org,
-//		http://www.gnu.org/licenses/gpl.html
+// License: GPL, v3, as defined and found on www.gnu.org,
+//      http://www.gnu.org/licenses/gpl.html
 //
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
 
-`default_nettype	none
+`default_nettype    none
 //
 //
 module afifo #(
-	parameter	DSIZE = 32,	ASIZE = 9
+    parameter   DSIZE = 32, ASIZE = 9, ENABLE_FILLING_LEVEL = 0,
 )
 (
-	input	wire			i_wclk, i_wrst_n, i_wr,
-	input	wire	[DSIZE-1:0]	i_wdata,
-	output	reg			o_wfull,
-	output	reg			o_led0,
-	output	reg			o_led1,
-	output	reg	[ASIZE:0]	o_wfill_level,
-	input	wire			i_rclk, i_rrst_n, i_rd,
-	output	reg	[DSIZE-1:0]	o_rdata,
-	output	reg			o_rempty,
-	output	reg[7:0]		o_debugo
+    input   wire            i_wclk, i_wrst_n, i_wr,
+    input   wire    [DSIZE-1:0] i_wdata,
+    output  reg         o_wfull,
+    output  reg [ASIZE:0]   o_wfilling_level,
+    input   wire            i_rclk, i_rrst_n, i_rd,
+    output  reg [DSIZE-1:0] o_rdata,
+    output  reg         o_rempty,
 );
 
-	localparam	DW = DSIZE,	AW = ASIZE;
+    localparam  DW = DSIZE, AW = ASIZE;
 
-	wire	[AW-1:0]	waddr, raddr;
-	wire			wfull_next, rempty_next;
-	reg	[AW:0]		wgray, wbin, wq2_rgray, wq1_rgray,
-				rgray, rbin, rq2_wgray, rq1_wgray;
+    wire    [AW-1:0]    waddr, raddr;
+    wire            wfull_next, rempty_next;
+    reg [AW:0]      wgray, wbin, wq2_rgray, wq1_rgray,
+                rgray, rbin, rq2_wgray, rq1_wgray;
 
-	//
-	wire	[AW:0]		wgraynext, wbinnext;
-	wire	[AW:0]		rgraynext, rbinnext;
-	
-	reg	[DW-1:0]	mem	[0:((1<<AW)-1)];
+    //
+    wire    [AW:0]      wgraynext, wbinnext;
+    wire    [AW:0]      rgraynext, rbinnext;
+    
+    reg [DW-1:0]    mem [0:((1<<AW)-1)];
 
-	/////////////////////////////////////////////
-	//
-	//
-	// Write logic
-	//
-	//
-	/////////////////////////////////////////////
+    initial o_wfilling_level = 0;
 
-	//
-	// Cross clock domains
-	//
-	// Cross the read Gray pointer into the write clock domain
-	initial	{ wq2_rgray,  wq1_rgray } = 0;
-	always @(posedge i_wclk or negedge i_wrst_n)
-	if (!i_wrst_n)
-		{ wq2_rgray, wq1_rgray } <= 0;
-	else
-		{ wq2_rgray, wq1_rgray } <= { wq1_rgray, rgray };
+    /////////////////////////////////////////////
+    //
+    //
+    // Write logic
+    //
+    //
+    /////////////////////////////////////////////
 
-	// Calculate the next write address, and the next graycode pointer.
-	assign	wbinnext  = wbin + { {(AW){1'b0}}, ((i_wr) && (!o_wfull)) };
-	assign	wgraynext = (wbinnext >> 1) ^ wbinnext;
+    //
+    // Cross clock domains
+    //
+    // Cross the read Gray pointer into the write clock domain
+    initial { wq2_rgray,  wq1_rgray } = 0;
+    always @(posedge i_wclk or negedge i_wrst_n)
+    if (!i_wrst_n)
+        { wq2_rgray, wq1_rgray } <= 0;
+    else
+        { wq2_rgray, wq1_rgray } <= { wq1_rgray, rgray };
 
-	assign	waddr = wbin[AW-1:0];
+    // Calculate the next write address, and the next graycode pointer.
+    assign  wbinnext  = wbin + { {(AW){1'b0}}, ((i_wr) && (!o_wfull)) };
+    assign  wgraynext = (wbinnext >> 1) ^ wbinnext;
 
-	// Register these two values--the address and its Gray code
-	// representation
-	initial	{ wbin, wgray } = 0;
-	always @(posedge i_wclk or negedge i_wrst_n)
-	if (!i_wrst_n)
-		{ wbin, wgray } <= 0;
-	else
-		{ wbin, wgray } <= { wbinnext, wgraynext };
+    assign  waddr = wbin[AW-1:0];
 
-	assign	wfull_next = (wgraynext == { ~wq2_rgray[AW:AW-1],
-				wq2_rgray[AW-2:0] });
+    // Register these two values--the address and its Gray code
+    // representation
+    initial { wbin, wgray } = 0;
+    always @(posedge i_wclk or negedge i_wrst_n)
+    if (!i_wrst_n)
+        { wbin, wgray } <= 0;
+    else
+        { wbin, wgray } <= { wbinnext, wgraynext };
 
-	//
-	// Calculate whether or not the register will be full on the next
-	// clock.
-	initial	o_wfull = 0;
-	always @(posedge i_wclk or negedge i_wrst_n)
-	if (!i_wrst_n)
-			o_wfull <= 1'b0;
-		else
-			o_wfull <= wfull_next;
+    assign  wfull_next = (wgraynext == { ~wq2_rgray[AW:AW-1],
+                wq2_rgray[AW-2:0] });
 
-	//
-	// Calculate just how full we are
-	//
-	// We'll allow this to be a clock or two out of date, allowing the
-	// feeding circuit to set a threshold to stop with.
-	reg	[AW:0]	rq2_wbin;
-	integer	g2b;
-	always @(*)
-	begin
-		rq2_wbin[AW] = rq2_wgray[AW];
-		for(g2b=AW-1; g2b>=0; g2b=g2b-1)
-		begin
-			rq2_wbin[g2b] = rq2_wgray[g2b] ^ rq2_wbin[g2b+1];
-		end
-	end
-
-	always @(posedge i_rclk or negedge i_rrst_n)
-		if (!i_rrst_n) begin
-			o_wfill_level <= 0;
-		end else
-			o_wfill_level <= rq2_wbin - rbin;
-
-	// Write to the FIFO on a clock
-
-	always @(posedge i_wclk)
-	if ((i_wr)&&(!o_wfull))
-		mem[waddr] <= i_wdata;
+    //
+    // Calculate whether or not the register will be full on the next
+    // clock.
+    initial o_wfull = 0;
+    always @(posedge i_wclk or negedge i_wrst_n) begin
+    if (!i_wrst_n)
+            o_wfull <= 1'b0;
+        else
+            o_wfull <= wfull_next;
+    end
 
 
-	////////////////////////////////////////////////////////////////////////
-	////////////////////////////////////////////////////////////////////////
-	//
-	//
-	// Read logic
-	//
-	//
-	////////////////////////////////////////////////////////////////////////
-	////////////////////////////////////////////////////////////////////////
-	//
-	//
+    if (ENABLE_FILLING_LEVEL) begin
 
-	//
-	// Cross clock domains
-	//
-	// Cross the write Gray pointer into the read clock domain
-	initial	{ rq2_wgray,  rq1_wgray } = 0;
-	always @(posedge i_rclk or negedge i_rrst_n)
-	if (!i_rrst_n)
-		{ rq2_wgray, rq1_wgray } <= 0;
-	else
-		{ rq2_wgray, rq1_wgray } <= { rq1_wgray, wgray };
+        //
+        // Calculate just how full we are
+        //
+        // We'll allow this to be a clock or two out of date, allowing the
+        // feeding circuit to set a threshold to stop with.
+        reg [AW:0]  rq2_wbin;
+        integer g2b;
+        always @(*)
+        begin
+            rq2_wbin[AW] = rq2_wgray[AW];
+            for(g2b=AW-1; g2b>=0; g2b=g2b-1)
+            begin
+                rq2_wbin[g2b] = rq2_wgray[g2b] ^ rq2_wbin[g2b+1];
+            end
+        end
 
+        always @(posedge i_rclk or negedge i_rrst_n) begin
+            if (!i_rrst_n) begin
+                o_wfilling_level <= 0;
+            end else
+                o_wfilling_level <= rq2_wbin - rbin;
+        end
+    end
 
-	// Calculate the next read address,
-	assign	rbinnext  = rbin + { {(AW){1'b0}}, ((i_rd)&&(!o_rempty)) };
-	// and the next Gray code version associated with it
-	assign	rgraynext = (rbinnext >> 1) ^ rbinnext;
+    // Write to the FIFO on a clock
 
-	// Register these two values, the read address and the Gray code version
-	// of it, on the next read clock
-	//
-	initial	{ rbin, rgray } = 0;
-	always @(posedge i_rclk or negedge i_rrst_n)
-	if (!i_rrst_n)
-		{ rbin, rgray } <= 0;
-	else
-		{ rbin, rgray } <= { rbinnext, rgraynext };
+    always @(posedge i_wclk)
+    if ((i_wr)&&(!o_wfull))
+        mem[waddr] <= i_wdata;
 
 
-	always @(posedge i_rclk)
-		o_rdata = mem[raddr];
+    ////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //
+    // Read logic
+    //
+    //
+    ////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //
 
-	// Memory read address Gray code and pointer calculation
-	assign	raddr = rbin[AW-1:0];
+    //
+    // Cross clock domains
+    //
+    // Cross the write Gray pointer into the read clock domain
+    initial { rq2_wgray,  rq1_wgray } = 0;
+    always @(posedge i_rclk or negedge i_rrst_n)
+    if (!i_rrst_n)
+        { rq2_wgray, rq1_wgray } <= 0;
+    else
+        { rq2_wgray, rq1_wgray } <= { rq1_wgray, wgray };
 
-	// Determine if we'll be empty on the next clock
-	assign	rempty_next = (rgraynext == rq2_wgray);
 
-	initial o_rempty = 1;
-	always @(posedge i_rclk or negedge i_rrst_n)
-	if (!i_rrst_n)
-		o_rempty <= 1'b1;
-	else
-		o_rempty <= rempty_next;
+    // Calculate the next read address,
+    assign  rbinnext  = rbin + { {(AW){1'b0}}, ((i_rd)&&(!o_rempty)) };
+    // and the next Gray code version associated with it
+    assign  rgraynext = (rbinnext >> 1) ^ rbinnext;
 
-	//
-	// Read from the memory--a clockless read here, clocked by the next
-	// read FLOP in the next processing stage (somewhere else)
-	//
-	//assign	o_rdata = mem[raddr];
+    // Register these two values, the read address and the Gray code version
+    // of it, on the next read clock
+    //
+    initial { rbin, rgray } = 0;
+    always @(posedge i_rclk or negedge i_rrst_n)
+    if (!i_rrst_n)
+        { rbin, rgray } <= 0;
+    else
+        { rbin, rgray } <= { rbinnext, rgraynext };
 
-	
+
+    always @(posedge i_rclk)
+        o_rdata = mem[raddr];
+
+    // Memory read address Gray code and pointer calculation
+    assign  raddr = rbin[AW-1:0];
+
+    // Determine if we'll be empty on the next clock
+    assign  rempty_next = (rgraynext == rq2_wgray);
+
+    initial o_rempty = 1;
+    always @(posedge i_rclk or negedge i_rrst_n)
+    if (!i_rrst_n)
+        o_rempty <= 1'b1;
+    else
+        o_rempty <= rempty_next;
+
+    //
+    // Read from the memory--a clockless read here, clocked by the next
+    // read FLOP in the next processing stage (somewhere else)
+    //
+    //assign    o_rdata = mem[raddr];
+
+    
 endmodule
-

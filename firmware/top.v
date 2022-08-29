@@ -3,22 +3,21 @@
 `include "smi_ctrl.v"
 `include "lvds_rx.v"
 `include "lvds_tx.v"
-`include "simple_fifo.v"
 `include "afifo.v"
 `include "rx_framer.v"
+`include "tx_deframer.v"
 
 module top(
       input i_glob_clock,
-
 
       // MODEM (LVDS & CLOCK)
       output o_iq_tx_p,
       output o_iq_tx_n,
       output o_iq_tx_clk_p,
       output o_iq_tx_clk_n,
-      input i_iq_rx_09_p,     // Paired with i_iq_rx_09_n - only the 'B' pins need to be specified
-      input i_iq_rx_clk_p,    // Paired with i_iq_rx_clk_n - only the 'B' pins need to be specified
 
+      input i_iq_rx_p,     // Paired with i_iq_rx_n - only the 'B' pins need to be specified
+      input i_iq_rx_clk_p, // Paired with i_iq_rx_clk_n - only the 'B' pins need to be specified
 
       // DIGITAL I/F
       output o_led0,
@@ -32,8 +31,9 @@ module top(
       input i_smi_soe_se,
       input i_smi_swe_srw,
       inout [7:0] io_smi_data,
-      output o_smi_write_req,
-      output o_smi_read_req,
+
+      output o_smi_dreq,
+      input i_smi_dack, // not used
 
       // SPI
       input i_mosi,
@@ -44,9 +44,7 @@ module top(
    //=========================================================================
    // INNER SIGNALS
    //=========================================================================
-   reg         r_counter;
-   wire        w_clock_spi;
-   wire        w_clock_sys;
+   reg         r_clock_sys;
    wire        w_clock_smi_tx;
    wire [4:0]  w_ioc;
    wire [7:0]  w_rx_data;
@@ -54,19 +52,13 @@ module top(
    wire [3:0]  w_cs;
    wire        w_fetch;
    wire        w_load;
-   reg         r_reset;
    wire        w_soft_reset;
-
-   wire [7:0]  w_tx_data_sys;
-   wire [7:0]  w_tx_data_io;
-   wire [7:0]  w_tx_data_smi;
 
    //=========================================================================
    // INITIAL STATE
    //=========================================================================
    initial begin
-      r_counter = 2'b0;
-      r_reset = 1'b0;
+      r_clock_sys = 1'b0;
    end
 
    //=========================================================================
@@ -75,7 +67,7 @@ module top(
    spi_if spi_if_ins
    (
       .i_rst_b (w_soft_reset),
-      .i_sys_clk (w_clock_sys),
+      .i_sys_clk (r_clock_sys),
       .o_ioc (w_ioc),
       .o_data_in (w_rx_data),
       .i_data_out (r_tx_data),
@@ -85,108 +77,81 @@ module top(
 
       // SPI Interface
       .i_spi_sck (i_sck),
-      .o_spi_miso (int_miso),
+      .o_spi_miso (w_miso),
       .i_spi_mosi (i_mosi),
       .i_spi_cs_b (i_ss)
    );
 
-   wire int_miso;
-   assign o_miso = (i_ss)?1'bZ:int_miso;
+   wire w_miso;
+   assign o_miso = (i_ss)?1'bZ:w_miso;
 
    sys_ctrl sys_ctrl_ins
    (
-      .i_reset (r_reset),
-      .i_sys_clk (w_clock_sys),
+      .i_sys_clk (r_clock_sys),
       .i_ioc (w_ioc),
       .i_data_in (w_rx_data),
-      .o_data_out (w_tx_data_sys),
+      //.o_data_out (w_tx_data_sys),
       .i_cs (w_cs[0]),
       .i_fetch_cmd (w_fetch),
       .i_load_cmd (w_load),
       .o_soft_reset (w_soft_reset),
-
-      //.i_error_list (w_debug)
    );
 
    //=========================================================================
-   // CONBINATORIAL ASSIGNMENTS
-   //=========================================================================
-   //assign w_clock_spi = r_counter[0];
-   assign w_clock_sys = r_counter;
-
-   /*SB_GB sys_clk_buffer (          // Improve 'lvds_clock' fanout by pushing it into
-                                    // a global high-fanout buffer
-      .USER_SIGNAL_TO_GLOBAL_BUFFER (r_counter),
-      .GLOBAL_BUFFER_OUTPUT(w_clock_sys) );*/
-
-   //=========================================================================
-   // CLOCK AND DATA-FLOW
+   // SYSTEM CLOCK
    //=========================================================================
    always @(posedge i_glob_clock)
    begin
-      r_counter <= !r_counter;
-
-      case (w_cs)
-         4'b0001: r_tx_data <= w_tx_data_sys;
-         4'b0010: r_tx_data <= w_tx_data_io;
-         4'b0100: r_tx_data <= w_tx_data_smi;
-         4'b1000: r_tx_data <= 8'b10100101;  // 0xA5: reserved
-         4'b0000: r_tx_data <= 8'b00000000;  // no module selected
-      endcase
+	  r_clock_sys <= !r_clock_sys;
    end
 
    //=========================================================================
    // I/O (SB_IO, SB_GB) DIFFERENTIAL LINES
    //=========================================================================
    // Differential clock signal
-   wire lvds_clock;        // The direct clock input
-   wire lvds_clock_buf;    // The clock input after global buffer (improved fanout)
+   wire w_lvds_rx_clk;        // The direct clock input
+   wire w_lvds_tx_clk;
+
+   assign w_lvds_tx_clk = w_lvds_rx_clk;
 
    SB_IO #(
        .PIN_TYPE(6'b0000_01),        // Input only, direct mode
-      .IO_STANDARD("SB_LVDS_INPUT") // LVDS input
+      .IO_STANDARD("SB_LVDS_INPUT")  // LVDS input
    ) iq_rx_clk (
       .PACKAGE_PIN(i_iq_rx_clk_p),  // Physical connection to 'i_iq_rx_clk_p'
-      .D_IN_0 ( lvds_clock ));      // Wire out to 'lvds_clock'
+      .D_IN_0 ( w_lvds_rx_clk ));   // Wire out to 'w_lvds_rx_clk'
 
    SB_IO #(
        .PIN_TYPE(6'b0110_00),
        .IO_STANDARD("SB_LVCMOS") 
    ) iq_tx_clk_n (
        .PACKAGE_PIN(o_iq_tx_clk_n),
-       .D_OUT_0 ( ~lvds_clock_buf ));
+       .D_OUT_0 ( ~w_lvds_tx_clk ));
 
    SB_IO #(
        .PIN_TYPE(6'b0110_00),
        .IO_STANDARD("SB_LVCMOS")
    ) iq_tx_clk_p (
        .PACKAGE_PIN(o_iq_tx_clk_p),
-       .D_OUT_0 ( lvds_clock_buf ));
+       .D_OUT_0 ( w_lvds_tx_clk ));
 
    SB_IO #(
        .PIN_TYPE(6'b0100_00),
        .IO_STANDARD("SB_LVCMOS")
    ) iq_tx_n (
        .PACKAGE_PIN(o_iq_tx_n),
-       .OUTPUT_CLK (lvds_clock_buf),
-       .D_OUT_0 ( ~d1 ),
-       .D_OUT_1 ( ~d0 ));
+       .OUTPUT_CLK (w_lvds_tx_clk),
+       .D_OUT_0 ( ~r_lvds_tx_d1 ),
+       .D_OUT_1 ( ~r_lvds_tx_d0 ));
 
    SB_IO #(
        .PIN_TYPE(6'b0100_00),
        .IO_STANDARD("SB_LVCMOS")
    ) iq_tx_p (
        .PACKAGE_PIN(o_iq_tx_p),
-       .OUTPUT_CLK (lvds_clock_buf),
-       .D_OUT_0 ( d1 ),
-       .D_OUT_1 ( d0 ));
-
-   SB_GB lvds_clk_buffer (          // Improve 'lvds_clock' fanout by pushing it into
-                                    // a global high-fanout buffer
-      .USER_SIGNAL_TO_GLOBAL_BUFFER (lvds_clock),
-      .GLOBAL_BUFFER_OUTPUT(lvds_clock_buf) );
-
-   //assign lvds_clock_buf = lvds_clock;
+       .OUTPUT_CLK (w_lvds_tx_clk),
+       .D_OUT_0 ( r_lvds_tx_d1 ),
+       .D_OUT_1 ( r_lvds_tx_d0 ));
 
    // Differential 0.9GHz I/Q DDR signal
    SB_IO #(
@@ -194,149 +159,124 @@ module top(
                                     // negedge of the input clock)
       .IO_STANDARD("SB_LVDS_INPUT"),// LVDS standard
       .NEG_TRIGGER(1'b0)            // The signal is negated in hardware
-   ) iq_rx_09 (
-      .PACKAGE_PIN(i_iq_rx_09_p),
-      .INPUT_CLK (lvds_clock_buf),  // The I/O sampling clock with DDR
-      .D_IN_0 ( w_lvds_rx_09_d1 ),  // the 0 deg data output
-      .D_IN_1 ( w_lvds_rx_09_d0 ) );// the 180 deg data output
-
+   ) iq_rx (
+      .PACKAGE_PIN(i_iq_rx_p),
+      .INPUT_CLK (w_lvds_tx_clk),  // The I/O sampling clock with DDR
+      .D_IN_0 ( w_lvds_rx_d1 ),    // the 0 deg data output
+      .D_IN_1 ( w_lvds_rx_d0 ) );  // the 180 deg data output
 
    //=========================================================================
    // LVDS RX SIGNAL FROM MODEM
    //=========================================================================
-   wire w_lvds_rx_09_d0;   // 0 degree
-   wire w_lvds_rx_09_d1;   // 180 degree
-   reg d0;   // 0 degree
-   reg d1;   // 180 degree
+   wire w_lvds_rx_d0;   // 0 degree
+   wire w_lvds_rx_d1;   // 180 degree
+   reg r_lvds_tx_d0;    // 0 degree
+   reg r_lvds_tx_d1;    // 180 degree
 
-   wire w_rx_09_fifo_full;
-   wire w_rx_09_fifo_full2;
-   wire w_rx_09_fifo_empty;
-   wire w_rx_09_fifo_empty2;
-   wire w_rx_09_fifo_empty_tx;
-   wire w_rx_09_fifo_write_clk;
-   wire w_rx_09_fifo_push;
-   wire w_rx_09_fifo_push2;
-   wire [31:0] w_rx_09_fifo_data;
-   wire [31:0] w_rx_09_fifo_data2;
-   wire w_rx_09_fifo_pull;
-   wire w_rx_09_fifo_pull2;
-   wire w_rx_09_fifo_pull_tx;
-   wire w_rx_09_fifo_push_tx;
-   wire w_rx_09_fifo_full_tx;
-   wire [31:0] w_rx_09_fifo_data_tx;
-   wire [31:0] w_rx_09_fifo_pulled_data;
-   wire [31:0] w_rx_09_fifo_pulled_data2;
-   wire [31:0] w_rx_09_fifo_pulled_data_tx;
+   wire w_lvds_rx_enable;
+   wire [31:0] w_lvds_rx_data;
 
-   wire o_clk;
-   wire [10:0] w_fill_level;
+   wire w_rx_fifo_pull;
+   wire w_rx_fifo_push;
+   wire w_rx_fifo_full;
+   wire w_rx_fifo_empty;
+   wire [31:0] w_rx_fifo_data;
+   wire [31:0] w_rx_fifo_pulled_data;
 
-   lvds_tx lvds_tx_09_inst(
+   wire w_tx_fifo_pull;
+   wire w_tx_fifo_push;
+   wire w_tx_fifo_full;
+   wire w_tx_fifo_empty;
+   wire [31:0] w_tx_fifo_data;
+   wire [31:0] w_tx_fifo_pulled_data;
+   wire w_tx_clk;
+   wire w_rx_clk;
+
+   wire [9:0] w_filling_level;
+
+   lvds_tx lvds_tx_inst(
       .i_reset (w_soft_reset),
-      .i_ddr_clk (lvds_clock_buf),
+      .i_ddr_clk (w_lvds_tx_clk),
       
-      .o_ddr_data ({d1, d0}),
-      .o_read(w_rx_09_fifo_pull_tx),
+      .o_ddr_data ({r_lvds_tx_d1, r_lvds_tx_d0}),
+      .o_read(w_tx_fifo_pull),
       
-      .i_empty(w_rx_09_fifo_empty_tx),
-      .i_data(w_rx_09_fifo_pulled_data_tx),
-      .o_led0 (o_led0),
-      .o_led1 (o_led1),
-      .o_clk(o_clk)
+      .i_empty(w_tx_fifo_empty),
+      .i_data(w_tx_fifo_pulled_data),
+      .o_clk(w_tx_clk),
+      .o_led0(o_led0),
+      .o_led1(o_led1),
    );
 
-    afifo tx_09_fifo(
+    afifo #(.ENABLE_FILLING_LEVEL(1)) tx_fifo(
        .i_wrst_n (!w_soft_reset),
        .i_wclk (w_clock_smi_tx),
-
-       .i_wr (w_rx_09_fifo_push_tx),
-       .i_wdata (w_rx_09_fifo_data_tx),
-
+       .i_wr (w_tx_fifo_push),
+       .i_wdata (w_tx_fifo_data),
        .i_rrst_n (!w_soft_reset),
-       .i_rclk (o_clk),
+       .i_rclk (w_tx_clk),
+       .i_rd (w_tx_fifo_pull),
 
-       .i_rd (w_rx_09_fifo_pull_tx),
-       .o_rdata (w_rx_09_fifo_pulled_data_tx),
-       .o_wfull (w_rx_09_fifo_full_tx),
-       .o_rempty (w_rx_09_fifo_empty_tx),
-       .o_wfill_level(w_fill_level)
+       .o_rdata (w_tx_fifo_pulled_data),
+       .o_wfull (w_tx_fifo_full),
+       .o_rempty (w_tx_fifo_empty),
+       .o_wfilling_level(w_filling_level)
    );
 
-   lvds_rx lvds_rx_09_inst(
+   lvds_rx lvds_rx_inst(
       .i_reset (w_soft_reset),
-      .i_ddr_clk (lvds_clock),
-      
-      .i_ddr_data ({w_lvds_rx_09_d1, w_lvds_rx_09_d0}),
-      .i_fifo_full (w_rx_09_fifo_full),
-      .o_fifo_write_clk (w_rx_09_fifo_write_clk),
-      .o_fifo_push (w_rx_09_fifo_push),
-      
-      .o_fifo_data (w_rx_09_fifo_data),
-      
-      .o_debug_state ()
+      .i_ddr_clk (w_lvds_rx_clk),
+      .i_ddr_data ({w_lvds_rx_d1, w_lvds_rx_d0}),
+
+      .o_enable (w_lvds_rx_enable),
+      .o_data (w_lvds_rx_data),
+      .o_clk(w_rx_clk)
    );
 
-   simple_fifo rx_09_fifo1(
-      .wr_rst_i (w_soft_reset),
-      .wr_clk_i (w_rx_09_fifo_write_clk),
-      .wr_en_i (w_rx_09_fifo_push),
-      .wr_data_i ({3'b000, w_rx_09_fifo_data[29:17], 3'b000, w_rx_09_fifo_data[13:1]}),
-      .rd_rst_i (w_soft_reset),
-      .rd_clk_i (w_clock_sys),
-      .rd_en_i (w_rx_09_fifo_pull),
-      .rd_data_o (w_rx_09_fifo_pulled_data),
-      .full_o (w_rx_09_fifo_full),
-      .empty_o (w_rx_09_fifo_empty)
-   );
-
-   rx_framer myFramer(
+   rx_framer rx_framer(
        .i_reset(w_soft_reset),
-       .i_clk(w_clock_sys),
+       .i_clk(w_rx_clk),
 
-       .o_read(w_rx_09_fifo_pull),
-       .i_empty(w_rx_09_fifo_empty),
-       .i_data(w_rx_09_fifo_pulled_data),
+       .i_enable(w_lvds_rx_enable),
+       .i_data ({3'b000, w_lvds_rx_data[29:17], 3'b000, w_lvds_rx_data[13:1]}),
 
-       .o_fifo_push(w_rx_09_fifo_push2),
-       .o_fifo_data(w_rx_09_fifo_data2),
-       .i_fifo_full(w_rx_09_fifo_full2),
+       .o_fifo_push(w_rx_fifo_push),
+       .o_fifo_data(w_rx_fifo_data),
+       .i_fifo_full(w_rx_fifo_full),
    );
 
-   simple_fifo rx_09_fifo2(
-       .wr_rst_i (w_soft_reset),
-       .wr_clk_i (w_clock_sys),
+   afifo rx_fifo(
+       .i_wrst_n (!w_soft_reset),
+       .i_wclk (r_clock_sys),
+       .i_wr (w_rx_fifo_push),
+       .i_wdata (w_rx_fifo_data),
+       .i_rrst_n (!w_soft_reset),
+       .i_rclk (r_clock_sys),
+       .i_rd (w_rx_fifo_pull),
 
-       .wr_en_i (w_rx_09_fifo_push2),
-       .wr_data_i (w_rx_09_fifo_data2),
-       .full_o (w_rx_09_fifo_full2), 
-
-       .rd_rst_i (w_soft_reset),
-       .rd_clk_i (w_clock_sys),
-
-       .rd_en_i (w_rx_09_fifo_pull2),
-       .rd_data_o (w_rx_09_fifo_pulled_data2),
-       .empty_o (w_rx_09_fifo_empty2),
+       .o_rdata (w_rx_fifo_pulled_data),
+       .o_wfull (w_rx_fifo_full),
+       .o_rempty (w_rx_fifo_empty),
    );
 
    smi_ctrl smi_ctrl_ins
    (
       .i_reset (w_soft_reset),
-      .i_sys_clk (w_clock_sys),
+      .i_sys_clk (r_clock_sys),
       .i_ioc (w_ioc),
       .i_data_in (w_rx_data),
-      .o_data_out (w_tx_data_smi),
+      //.o_data_out (w_tx_data_smi),
       .i_cs (w_cs[2]),
       .i_fetch_cmd (w_fetch),
       .i_load_cmd (w_load),
 
-      .o_fifo_09_pull (w_rx_09_fifo_pull2),
-      .i_fifo_09_pulled_data (w_rx_09_fifo_pulled_data2),
-      .i_fifo_09_full (w_rx_09_fifo_full2),
-      .i_fifo_09_empty (w_rx_09_fifo_empty2),
+      .o_fifo_pull (w_rx_fifo_pull),
+      .i_fifo_pulled_data (w_rx_fifo_pulled_data),
+      .i_fifo_full (w_rx_fifo_full),
+      .i_fifo_empty (w_rx_fifo_empty),
 
-      .o_fifo_09_push(w_rx_09_fifo_push_tx),
-      .o_fifo_09_pushed_data(w_rx_09_fifo_data_tx),
+      .o_fifo_push(w_tx_fifo_push),
+      .o_fifo_pushed_data(w_tx_fifo_data),
       .o_clk(w_clock_smi_tx),
 
       .i_smi_a (w_smi_addr),
@@ -344,35 +284,21 @@ module top(
       .i_smi_swe_srw (i_smi_swe_srw),
       .o_smi_data_out (w_smi_data_output),
       .i_smi_data_in (w_smi_data_input),
-      .o_smi_read_req (w_smi_read_req),
-      .o_smi_write_req (w_smi_write_req),
       .o_smi_writing (w_smi_writing),
-      .o_dreq (w_dreq),
-      .i_smi_test (w_smi_test),
-      .i_fifo_full (w_rx_09_fifo_full_tx),
-      .i_fifo_fill_level (w_fill_level),
-      .o_address_error ()
+      .i_fifo_full (w_tx_fifo_full),
    );
 
    wire [2:0] w_smi_addr;
    wire [7:0] w_smi_data_output;
    wire [7:0] w_smi_data_input;
-   wire w_smi_read_req;
-   wire w_smi_write_req;
    wire w_smi_writing;
-   wire w_dreq;
-   wire w_smi_test;
 
-   assign w_smi_test = 1'b0;
    assign w_smi_addr = {i_smi_a3, i_smi_a2, i_smi_a1};
+
    assign io_smi_data = (w_smi_writing)?w_smi_data_output:8'bZ;
    assign w_smi_data_input = io_smi_data;
 
-   //assign o_smi_write_req = (w_smi_writing)? w_smi_write_req :1'bZ;
+  /* LVDS TX and RX seem to run simultaneously, so we only need to deal TX */
+  assign o_smi_dreq = (w_filling_level < 500) ? 1 : 0;
 
-   //assign o_smi_read_req = (w_smi_writing)? w_smi_read_req :1'bZ;
-   assign o_smi_write_req = 1'bZ;
-   //assign o_smi_read_req = (w_fill_level < 984) ? 1 : 0;
-   assign o_smi_read_req = (w_fill_level < 500) ? 1 : 0;
-
-endmodule // top
+endmodule

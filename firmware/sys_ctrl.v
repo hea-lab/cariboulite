@@ -1,11 +1,10 @@
 module sys_ctrl
     (
-        input               i_reset,
         input               i_sys_clk,        // FPGA Clock
 
         input [4:0]         i_ioc,
         input [7:0]         i_data_in,
-        output reg [7:0]    o_data_out,
+        //output reg [7:0]    o_data_out,
         input               i_cs,
         input               i_fetch_cmd,
         input               i_load_cmd,
@@ -22,12 +21,12 @@ module sys_ctrl
         ioc_error_state     = 5'b00011,     // read only
         ioc_soft_reset      = 5'b00100;     // write only
 
-    // MODULE SPECIFIC PARAMS
-    // ----------------------
-    localparam
-        module_version  = 8'b00000001,
-        system_version  = 8'b00000001,
-        manu_id         = 8'b00000001;
+    //// MODULE SPECIFIC PARAMS
+    //// ----------------------
+    //localparam
+    //    module_version  = 8'b00000001,
+    //    system_version  = 8'b00000001,
+    //    manu_id         = 8'b00000001;
 
     // MODULE INTERNAL SIGNALS
     // -----------------------
@@ -42,18 +41,19 @@ module sys_ctrl
             //=============================================
             // READ OPERATIONS
             //=============================================
-            if (i_fetch_cmd == 1'b1) begin
-                case (i_ioc)
-                    ioc_module_version: o_data_out <= module_version;
-                    ioc_system_version: o_data_out <= system_version;
-                    ioc_manu_id: o_data_out <= manu_id;
-                    ioc_error_state: o_data_out <= i_error_list;
-                endcase
-            end
-            //=============================================
-            // WRITE OPERATIONS
-            //=============================================
-            else if (i_load_cmd == 1'b1) begin
+            //if (i_fetch_cmd == 1'b1) begin
+            //    //case (i_ioc)
+            //    //    ioc_module_version: o_data_out <= module_version;
+            //    //    ioc_system_version: o_data_out <= system_version;
+            //    //    ioc_manu_id: o_data_out <= manu_id;
+            //    //    ioc_error_state: o_data_out <= i_error_list;
+            //    //endcase
+            //end
+            ////=============================================
+            //// WRITE OPERATIONS
+            ////=============================================
+            //else
+            if (i_load_cmd == 1'b1) begin
                 case (i_ioc)
                     ioc_soft_reset: begin reset_cmd <= 1'b1; end
                 endcase
@@ -79,7 +79,6 @@ module sys_ctrl
                 reset_count <= 0; 
             end
         end
-        
     end
 
 endmodule // sys_ctrl

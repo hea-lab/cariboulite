@@ -1,13 +1,12 @@
-module rx_framer #(
-        parameter  TIMESTAMP_ACCURACY = 250,
-)
+module tx_deframer
 (
     input               i_reset,
     input               i_clk,
-    input               i_enable,
+    input               i_empty,
     input [31:0]        i_data,
     input               i_fifo_full,
 
+    output              o_read,
     output reg          o_fifo_push,
     output reg [31:0]   o_fifo_data
 );
@@ -48,7 +47,7 @@ endfunction
         STATE_PAYLOAD         = 3'b111,
         STATE_FCS             = 3'b110;
 
-    localparam [9:0] NB_SAMPLES    = 10'd256;
+	localparam [9:0] NB_SAMPLES    = 10'd256;
 
     reg[14:0]   r_seqnum;
     reg[63:0]   r_timestamp;
@@ -56,9 +55,12 @@ endfunction
     reg[2:0]    r_state;
     reg[15:0]   r_crc_in;
 
+    assign o_read = (r_state == STATE_PAYLOAD) && (i_fifo_full == 1'b0) && (i_empty == 1'b0);
+
     // Main Process
     always @(posedge i_clk)
     begin
+        //o_fifo_push <= 1'b0;
 
         if (i_reset) begin
             r_state <= STATE_HEADER;
@@ -88,8 +90,8 @@ endfunction
                     r_crc_in <= 16'hffff;
                 end
                 STATE_PAYLOAD: begin
-                    if (i_enable == 1'b0) begin
-                        r_timestamp <= r_timestamp + TIMESTAMP_ACCURACY; /* 4Mhz => 250 ns */
+                    if (i_empty == 1'b0) begin
+                        r_timestamp <= r_timestamp + 250;
                         o_fifo_push <= 1'b1;
                         o_fifo_data <= i_data;
                         r_crc_in <= crc16(r_crc_in, i_data);
@@ -101,6 +103,7 @@ endfunction
                         end
                     end else begin
                         o_fifo_push <= 1'b0;
+                        //o_fifo_data <= 32'hdeadbeef;
                     end
                 end
                 STATE_FCS: begin
@@ -110,7 +113,7 @@ endfunction
                 end
             endcase
         end else begin
-            o_fifo_push <= 1'b0;
+            //o_fifo_data <= 32'hdeadbeef;
         end
     end
 endmodule

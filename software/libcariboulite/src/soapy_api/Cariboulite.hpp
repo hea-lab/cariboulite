@@ -13,12 +13,11 @@
 #include <cstring>
 #include <algorithm>
 #include <atomic>
-#include <Iir.h>
 
 //#define ZF_LOG_LEVEL ZF_LOG_ERROR
 #define ZF_LOG_LEVEL ZF_LOG_VERBOSE
 
-#include "datatypes/circular_buffer.h"
+//#include "datatypes/circular_buffer.h"
 #include "cariboulite_setup.h"
 #include "cariboulite_radios.h"
 
@@ -104,25 +103,12 @@ public:
         Cariboulite_Format chosen_format;
 		int dig_filt;
 private:
-		circular_buffer<caribou_smi_sample_complex_int16> *queue;
         size_t mtu_size_bytes;
         uint8_t *partial_buffer;
         int partial_buffer_start;
         int partial_buffer_length;
 
         caribou_smi_sample_complex_int16 *interm_native_buffer;
-		#define FILT_ORDER	6
-		#define FILT_ORDER1	8
-		Iir::Butterworth::LowPass<FILT_ORDER> filt20_i;
-		Iir::Butterworth::LowPass<FILT_ORDER> filt20_q;
-		Iir::Butterworth::LowPass<FILT_ORDER> filt50_i;
-		Iir::Butterworth::LowPass<FILT_ORDER> filt50_q;
-		Iir::Butterworth::LowPass<FILT_ORDER> filt100_i;
-		Iir::Butterworth::LowPass<FILT_ORDER> filt100_q;
-		Iir::Butterworth::LowPass<FILT_ORDER> filt200_i;
-		Iir::Butterworth::LowPass<FILT_ORDER> filt200_q;
-		Iir::Butterworth::LowPass<FILT_ORDER1> filt2p5M_i;
-		Iir::Butterworth::LowPass<FILT_ORDER1> filt2p5M_q;
 };
 
 /***********************************************************************
@@ -175,6 +161,13 @@ public:
                         long long &timeNs,
                         const long timeoutUs = 100000);
 
+        int writeStream( SoapySDR::Stream *stream,
+                        const void * const *buffs,
+                        const size_t numElems,
+                        int &flags,
+                        const long long = 0,
+                        const long timeoutUs = 100000);
+
         int findSampleQueue(const int direction, const size_t channel);
         int findSampleQueueById(int stream_id);
 
@@ -225,15 +218,17 @@ public:
         /*******************************************************************
          * Sensors API
          ******************************************************************/
+#if 0
         virtual std::vector<std::string> listSensors(const int direction, const size_t channel) const;
         virtual SoapySDR::ArgInfo getSensorInfo(const int direction, const size_t channel, const std::string &key) const;
         virtual std::string readSensor(const int direction, const size_t channel, const std::string &key) const;
         template <typename Type>
         Type readSensor(const int direction, const size_t channel, const std::string &key) const;
+#endif
 
 public:
         cariboulite_radios_st radios;
-        SampleQueue* sample_queues[4];
+        //SampleQueue* sample_queues[4];
 
         // Static load time initializations
         static SoapyCaribouliteSession sess;

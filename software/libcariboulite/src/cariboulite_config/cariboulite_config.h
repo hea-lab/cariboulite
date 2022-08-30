@@ -15,7 +15,7 @@ extern "C" {
 #include "io_utils/io_utils.h"
 #include "io_utils/io_utils_spi.h"
 #include "io_utils/io_utils_sys_info.h"
-#include "ustimer/ustimer.h"
+//#include "ustimer/ustimer.h"
 
 // GENERAL SETTINGS
 #define MAX_PATH_LEN 512
@@ -87,7 +87,7 @@ typedef struct cariboulite_st_t
     // Chip level
     io_utils_spi_st spi_dev;
     caribou_smi_st smi;
-    ustimer_t timer;
+    //ustimer_t timer;
 
     // Peripheral chips
     latticeice40_st ice40;

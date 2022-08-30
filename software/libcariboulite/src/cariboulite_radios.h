@@ -187,7 +187,15 @@ int cariboulite_get_frequency(  cariboulite_radios_st* radios,
                                 cariboulite_channel_en channel, 
                                 double *freq, double *lo, double* i_f);
 
+int cariboulite_setup_stream(cariboulite_radios_st* radios, 
+                                cariboulite_channel_en channel,
+                                cariboulite_channel_dir_en channel_dir);
+
 int cariboulite_activate_channel(cariboulite_radios_st* radios, 
+                                cariboulite_channel_en channel,
+                                bool active);
+
+int cariboulite_deactivate_channel(cariboulite_radios_st* radios, 
                                 cariboulite_channel_en channel,
                                 bool active);
 

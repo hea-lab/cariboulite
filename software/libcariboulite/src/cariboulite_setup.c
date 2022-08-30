@@ -207,10 +207,10 @@ int cariboulite_setup_io (cariboulite_st* sys)
     io_utils_set_gpio_mode(sys->modem.irq_pin, io_utils_alt_gpio_in);
 
     // RFFC5072
-    io_utils_set_gpio_mode(sys->mixer.cs_pin, io_utils_alt_gpio_out);
-    io_utils_write_gpio(sys->mixer.cs_pin, 1);
-    io_utils_set_gpio_mode(sys->mixer.reset_pin, io_utils_alt_gpio_out);
-    io_utils_write_gpio(sys->mixer.reset_pin, 0);
+    //io_utils_set_gpio_mode(sys->mixer.cs_pin, io_utils_alt_gpio_out);
+    //io_utils_write_gpio(sys->mixer.cs_pin, 1);
+    //io_utils_set_gpio_mode(sys->mixer.reset_pin, io_utils_alt_gpio_out);
+    //io_utils_write_gpio(sys->mixer.reset_pin, 0);
 
     return 0;
 }
@@ -312,6 +312,7 @@ int cariboulite_init_submodules (cariboulite_st* sys)
     int res = 0;
     ZF_LOGI("initializing submodules");
 
+#if 0
     // SMI Init
     //------------------------------------------------------
     ZF_LOGD("INIT FPGA SMI communication");
@@ -321,6 +322,7 @@ int cariboulite_init_submodules (cariboulite_st* sys)
         ZF_LOGE("Error setting up smi submodule");
         goto cariboulite_init_submodules_fail;
     }
+#endif
 
     // AT86RF215
     //------------------------------------------------------
@@ -355,7 +357,7 @@ int cariboulite_init_submodules (cariboulite_st* sys)
         .loopback_enable = 0,
         .drv_strength = at86rf215_iq_drive_current_4ma,
         .common_mode_voltage = at86rf215_iq_common_mode_v_ieee1596_1v2,
-        .tx_control_with_iq_if = false,
+        .tx_control_with_iq_if = true,
         .radio09_mode = at86rf215_iq_if_mode,
         .radio24_mode = at86rf215_iq_if_mode,
         .clock_skew = at86rf215_iq_clock_data_skew_4_906ns,
@@ -476,11 +478,13 @@ int cariboulite_release_submodules(cariboulite_st* sys)
 
 	if (sys->system_status == cariboulite_sys_status_minimal_full_init)
 	{
+#if 0
 		// SMI Module
 		//------------------------------------------------------
 		ZF_LOGD("CLOSE SMI");
 		caribou_smi_close(&sys->smi);
 		usleep(10000);
+#endif
 
 		// AT86RF215
 		//------------------------------------------------------
@@ -541,6 +545,7 @@ int cariboulite_init_driver_minimal(cariboulite_st *sys, cariboulite_board_info_
 		return 0;
 	}
 
+#if 0
     // signals
 	ZF_LOGI("Initializing signals");
     cariboulite_setup_signal_handler (sys, NULL, cariboulite_signal_handler_op_last, NULL);
@@ -559,6 +564,7 @@ int cariboulite_init_driver_minimal(cariboulite_st *sys, cariboulite_board_info_
         return -cariboulite_signal_registration_failed;
     }
 
+#endif
 	if (cariboulite_setup_io (sys) != 0)
     {
         return -cariboulite_io_setup_failed;
@@ -593,6 +599,7 @@ int cariboulite_init_driver_minimal(cariboulite_st *sys, cariboulite_board_info_
                 sys->fpga_versions.smi_ctrl_mod_ver);
     ZF_LOGI("FPGA Errors: %02X", sys->fpga_error_status);
 
+#if 0 /* not used anymore */
     if (sys->fpga_versions.sys_ver != 0x01 || sys->fpga_versions.sys_manu_id != 0x01)
     {
         ZF_LOGE("FPGA firmware varsion error - sys_ver = %02X, manu_id = %02X", 
@@ -601,6 +608,7 @@ int cariboulite_init_driver_minimal(cariboulite_st *sys, cariboulite_board_info_
 		cariboulite_release_io (sys);
         return -cariboulite_fpga_configuration_failed;
     }
+#endif
 
 	// Now read the configuration from the FPGA (resistor set)
 	//caribou_fpga_set_io_ctrl_dig (&sys->fpga, int ldo, int led0, int led1);
@@ -657,6 +665,7 @@ int cariboulite_init_driver(cariboulite_st *sys, cariboulite_board_info_st *info
         return -cariboulite_submodules_init_failed;
     }
 
+#if 0
 	// Self-Test
     cariboulite_self_test_result_st self_tes_res = {0};
     if (cariboulite_self_test(sys, &self_tes_res) != 0)
@@ -665,6 +674,7 @@ int cariboulite_init_driver(cariboulite_st *sys, cariboulite_board_info_st *info
         cariboulite_release_io (sys);
         return -cariboulite_self_test_failed;
     }
+#endif
 
 	sys->system_status = cariboulite_sys_status_minimal_full_init;
 

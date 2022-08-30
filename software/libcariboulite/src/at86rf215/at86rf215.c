@@ -469,12 +469,47 @@ void at86rf215_setup_iq_radio_transmit (at86rf215_st* dev, at86rf215_rf_channel_
     */
 
     // 1. Set TRXOFF mode
+	at86rf215_radio_set_state(dev, radio, at86rf215_radio_state_cmd_trx_off);
     // 2. Enable all interrupts in 09,_24_IRQS
+	at86rf215_radio_irq_st int_mask = {
+		.wake_up_por = 1,
+		.trx_ready = 1,
+		.energy_detection_complete = 1,
+		.battery_low = 1,
+		.trx_error = 1,
+		.IQ_if_sync_fail = 1,
+		.res = 0,
+	};
+
+	at86rf215_radio_setup_interrupt_mask(dev, radio, &int_mask);
     // 3. Enable I/Q radio mode - setting IQIFC1.CHPM=1 at AT86RF215
+	at86rf215_iq_interface_config_st iq_if_config =
+	{
+		.loopback_enable = false,
+		.drv_strength = at86rf215_iq_drive_current_4ma,
+		.common_mode_voltage = at86rf215_iq_common_mode_v_ieee1596_1v2,
+		.tx_control_with_iq_if = false,
+		.radio09_mode = at86rf215_iq_if_mode,
+		.radio24_mode = at86rf215_iq_if_mode,
+		.clock_skew = 0,
+	};
+	at86rf215_setup_iq_if(dev, &iq_if_config);
     // 4. Configure the Transmitter Frontend:
     //      Set the transmitter analog frontend sub-registers TXCUTC.LPFCUT and TXCUTC.PARAMP
     //      Set the transmitter digital frontend sub-registers TXDFE.SR and TXDFE.RCUT
+    at86rf215_radio_tx_ctrl_st tx_config =
+    {
+        .pa_ramping_time = at86rf215_radio_tx_pa_ramp_32usec,
+        .current_reduction = at86rf215_radio_pa_current_reduction_0ma,
+        .tx_power = 31,
+        .analog_bw = at86rf215_radio_tx_cut_off_80khz,
+        .digital_bw = at86rf215_radio_rx_f_cut_half_fs,
+        .fs = at86rf215_radio_rx_sample_rate_4000khz,
+        .direct_modulation = 0,
+    };
+    at86rf215_radio_setup_tx_ctrl(dev, radio, &tx_config);
     // 5. Configure the channel parameters, see section "Channel Configuration" on page 62 and transmit power
+	at86rf215_setup_channel (dev, radio, 870000000); /* FIXME */
     // 6. Optional: Perform ED measurement, see section "Energy Measurement" on page 56. The following steps are recommended:
     //      Configure the measurement period, see register RFn_EDD.
     //      Switch to State RX.
@@ -483,6 +518,7 @@ void at86rf215_setup_iq_radio_transmit (at86rf215_st* dev, at86rf215_rf_channel_
     //          The completion of the measurement is indicated by the interrupt IRQS.EDC. The resulting ED value can be read from register RFn_EDV.
     //      For the automatic mode, a measurement starts by setting bit AGCC.FRZC=1. After the completion of the measurement period, the ED value can be read from register RFn_EDV.
     // 7. Switch to State TXPREP; interrupt IRQS.TRXRDY is issued.
+	at86rf215_radio_set_state(dev, radio, at86rf215_radio_state_cmd_tx);
     // 8. To start the actual transmission, there are two possibilities, depending on the setting of sub-register IQIFC0.EEC:
     //      IQIFC0.EEC=0 => Enable the radio transmitter by writing command TX to the register RFn_CMD via SPI.
     //      IQIFC0.EEC=1 => The transmitter is activated automatically with the TX start signal embedded in I_DATA[0],
@@ -521,7 +557,7 @@ void at86rf215_setup_iq_radio_receive (at86rf215_st* dev, at86rf215_rf_channel_e
     at86rf215_iq_interface_config_st iq_if_config =
     {
         .loopback_enable = iqloopback,
-        .drv_strength = at86rf215_iq_drive_current_4ma,
+        .drv_strength = at86rf215_iq_drive_current_2ma,
         .common_mode_voltage = at86rf215_iq_common_mode_v_ieee1596_1v2,
         .tx_control_with_iq_if = false,
         .radio09_mode = at86rf215_iq_if_mode,

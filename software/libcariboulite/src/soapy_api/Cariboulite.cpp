@@ -12,6 +12,7 @@ Cariboulite::Cariboulite(const SoapySDR::Kwargs &args)
     int stream_id = 0;
     
     CARIBOULITE_CONFIG_DEFAULT(temp);
+#if 0
 
     caribou_smi_stream_type_en types[] = {caribou_smi_stream_type_write, 
                                         caribou_smi_stream_type_write, 
@@ -30,6 +31,7 @@ Cariboulite::Cariboulite(const SoapySDR::Kwargs &args)
         int ch = (channels[i] == caribou_smi_channel_900)? cariboulite_channel_s1g : cariboulite_channel_6g;
         sample_queues[i]->AttachStreamId(stream_id, dir, ch);
     }
+#endif
 
     cariboulite_init_radios(&radios, &sess.cariboulite_sys);
 
@@ -43,11 +45,13 @@ Cariboulite::~Cariboulite()
 {
     cariboulite_dispose_radios(&radios);
 
+#if 0
     for (int i = 0; i < 4; i++)
     {
         delete sample_queues[i];
     }
     //SoapySDR_logf(SOAPY_SDR_INFO, "Cariboulite d'tor");
+#endif
 }
 
 /*******************************************************************
@@ -59,6 +63,7 @@ SoapySDR::Kwargs Cariboulite::getHardwareInfo() const
     //this also gets printed in --probe
     SoapySDR::Kwargs args;
 
+#if 0
     uint32_t serial_number = 0;
     uint32_t deviceId = 0;
     int count = 0;
@@ -70,6 +75,7 @@ SoapySDR::Kwargs Cariboulite::getHardwareInfo() const
     args["fpga_revision"] = std::to_string(1);
     args["vendor_name"] = sess.cariboulite_sys.board_info.product_vendor;
     args["product_name"] = sess.cariboulite_sys.board_info.product_name;
+#endif
 
     return args;
 }
@@ -79,10 +85,12 @@ SoapySDR::Kwargs Cariboulite::getHardwareInfo() const
  ******************************************************************/
 std::vector<std::string> Cariboulite::listAntennas( const int direction, const size_t channel ) const
 {
-    //printf("listAntennas dir: %d, channel: %ld\n", direction, channel);
+    printf("listAntennas dir: %d, channel: %ld\n", direction, channel);
 	std::vector<std::string> options;
     if (channel == cariboulite_channel_s1g) options.push_back( "TX/RX Sub1GHz" );
+#if 0
     else if (channel == cariboulite_channel_6g) options.push_back( "TX/RX 6GHz" );
+#endif
     
 	return(options);
 }
@@ -90,9 +98,11 @@ std::vector<std::string> Cariboulite::listAntennas( const int direction, const s
 //========================================================
 std::string Cariboulite::getAntenna( const int direction, const size_t channel ) const
 {
-    //printf("getAntenna dir: %d, channel: %ld\n", direction, channel);
+    printf("getAntenna dir: %d, channel: %ld\n", direction, channel);
 	if (channel == cariboulite_channel_s1g) return "TX/RX Sub1GHz";
+#if 0
     else if (channel == cariboulite_channel_6g) return "TX/RX 6GHz";
+#endif
     return "";
 }
 
@@ -125,7 +135,7 @@ std::vector<std::string> Cariboulite::listGains(const int direction, const size_
 */
 void Cariboulite::setGain(const int direction, const size_t channel, const double value)
 {
-    //printf("setGain dir: %d, channel: %ld, value: %.2f\n", direction, channel, value);
+    printf("setGain dir: %d, channel: %ld, value: %.2f\n", direction, channel, value);
     cariboulite_radio_state_st* rad = channel == cariboulite_channel_s1g? &radios.radio_sub1g : &radios.radio_6g;
     bool cur_agc_mode = rad->rx_agc_on;
 
@@ -249,7 +259,7 @@ void Cariboulite::setSampleRate( const int direction, const size_t channel, cons
     at86rf215_radio_f_cut_en rx_cuttof = rad->rx_fcut;
     at86rf215_radio_f_cut_en tx_cuttof = rad->tx_fcut;
 
-    //printf("setSampleRate dir: %d, channel: %ld, rate: %.2f\n", direction, channel, rate);
+    printf("setSampleRate dir: %d, channel: %ld, rate: %.2f\n", direction, channel, rate);
     if (direction == SOAPY_SDR_RX)
     {
         cariboulite_set_rx_samp_cutoff(&radios, 
@@ -389,13 +399,15 @@ void Cariboulite::setBandwidth( const int direction, const size_t channel, const
 	else if (bw == 50000.0f) filt = 2;
 	else if (bw == 20000.0f) filt = 1;
 
-	if (setbw < 200000) setbw = 200000;
+	if (setbw < 2000000.0) setbw = 2000000.0;
+
+	printf("setBandwidth %d %d %ld %d \n", direction, channel, bw, convertRxBandwidth(setbw)); 
 
     if (direction == SOAPY_SDR_RX)
     {
 		cariboulite_set_rx_bandwidth(&radios,(cariboulite_channel_en)channel, convertRxBandwidth(setbw));
-		if (channel == 0) sample_queues[2]->dig_filt = filt;
-		else if (channel == 1) sample_queues[3]->dig_filt = filt;
+		//if (channel == 0) sample_queues[2]->dig_filt = filt;
+		//else if (channel == 1) sample_queues[3]->dig_filt = filt;
     }
     else if (direction == SOAPY_SDR_TX)
     {
@@ -407,7 +419,7 @@ void Cariboulite::setBandwidth( const int direction, const size_t channel, const
 //========================================================
 double Cariboulite::getBandwidth( const int direction, const size_t channel ) const
 {
-    //printf("getBandwidth dir: %d, channel: %ld\n", direction, channel);
+    printf("getBandwidth dir: %d, channel: %ld\n", direction, channel);
     
     if (direction == SOAPY_SDR_RX)
     {
@@ -427,7 +439,7 @@ double Cariboulite::getBandwidth( const int direction, const size_t channel ) co
 //========================================================
 std::vector<double> Cariboulite::listBandwidths( const int direction, const size_t channel ) const
 {
-    //printf("listBandwidths\n");
+    printf("listBandwidths\n");
     std::vector<double> options;
     if (direction == SOAPY_SDR_RX)
     {
@@ -477,6 +489,7 @@ std::vector<double> Cariboulite::listBandwidths( const int direction, const size
 void Cariboulite::setFrequency( const int direction, const size_t channel, const std::string &name, 
                                 const double frequency, const SoapySDR::Kwargs &args )
 {
+	printf("setFrequency %f\n", frequency); 
     int err = 0;
     if (name != "RF")
     {
@@ -491,7 +504,7 @@ void Cariboulite::setFrequency( const int direction, const size_t channel, const
 //========================================================
 double Cariboulite::getFrequency( const int direction, const size_t channel, const std::string &name ) const
 {
-    //printf("getFrequency dir: %d, channel: %ld, name: %s\n", direction, channel, name.c_str());
+    printf("getFrequency dir: %d, channel: %ld, name: %s\n", direction, channel, name.c_str());
     double freq;
     if (name != "RF")
     {
@@ -544,3 +557,4 @@ SoapySDR::RangeList Cariboulite::getFrequencyRange( const int direction, const s
     throw std::runtime_error( "getFrequencyRange - unknown channel" );
 }
 
+#pragma GCC diagnostic pop

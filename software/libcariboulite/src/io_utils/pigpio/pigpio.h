@@ -6551,7 +6551,7 @@ after this command is issued.
 #define PI_DEFAULT_DMA_CHANNEL             14
 #define PI_DEFAULT_DMA_PRIMARY_CHANNEL     14
 #define PI_DEFAULT_DMA_SECONDARY_CHANNEL   6
-#define PI_DEFAULT_DMA_PRIMARY_CH_2711     7
+#define PI_DEFAULT_DMA_PRIMARY_CH_2711     8
 #define PI_DEFAULT_DMA_SECONDARY_CH_2711   6
 #define PI_DEFAULT_DMA_NOT_SET             15
 #define PI_DEFAULT_SOCKET_PORT             8890

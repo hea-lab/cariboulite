@@ -568,6 +568,9 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
                                 bool break_before_make,
                                 double *freq)
 {
+	static bool done_once = false;
+
+	if (done_once) return;
     cariboulite_radio_state_st* rad = GET_RADIO_PTR(radios,channel);
 
     double f_rf = *freq;
@@ -775,6 +778,7 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
                         channel, f_rf, act_freq, modem_act_freq, lo_act_freq);
     }
 
+	done_once = true;
     return -error;
 }
 
@@ -790,12 +794,23 @@ int cariboulite_get_frequency(  cariboulite_radios_st* radios,
 }
 
 //======================================================================
+int cariboulite_setup_stream(cariboulite_radios_st* radios, 
+                                cariboulite_channel_en channel,
+                                cariboulite_channel_dir_en channel_dir
+                                ) {
+
+    cariboulite_radio_state_st* rad = GET_RADIO_PTR(radios,channel);
+    rad->channel_direction = channel_dir;
+    return 0;
+
+}
 int cariboulite_activate_channel(cariboulite_radios_st* radios, 
                                 cariboulite_channel_en channel,
                                 bool active)
 {
     cariboulite_radio_state_st* rad = GET_RADIO_PTR(radios,channel);
 
+    /* FIXME patch */
     ZF_LOGD("Activating channel %d, dir = %s, active = %d", channel, rad->channel_direction==cariboulite_channel_dir_rx?"RX":"TX", active);
     // if the channel state is active, turn it off before reactivating
     if (rad->state != at86rf215_radio_state_cmd_tx_prep)
@@ -838,27 +853,52 @@ int cariboulite_activate_channel(cariboulite_radios_st* radios,
         // otherwise we need the modem
         else
         {
-            // make sure the mixer doesn't bypass the lo
-            rffc507x_output_lo(&rad->cariboulite_sys->mixer, 0);
+#if 1
 
-            cariboulite_set_tx_bandwidth(radios, channel,
-                        rad->cw_output?at86rf215_radio_tx_cut_off_80khz:rad->tx_bw);
+	        at86rf215_radio_tx_ctrl_st tx_config =
+    {
+        .pa_ramping_time = at86rf215_radio_tx_pa_ramp_32usec,
+        .current_reduction = at86rf215_radio_pa_current_reduction_0ma,
+        .tx_power = 10, /* ICI */
+        .analog_bw = at86rf215_radio_tx_cut_off_80khz,
+        .digital_bw = at86rf215_radio_rx_f_cut_half_fs,
+        .fs = at86rf215_radio_rx_sample_rate_4000khz,
+        .direct_modulation = 0,
+    };
+    at86rf215_radio_setup_tx_ctrl(&rad->cariboulite_sys->modem, GET_CH(channel), &tx_config);
 
-            // CW output - constant I/Q values override
-            at86rf215_radio_set_tx_dac_input_iq(&rad->cariboulite_sys->modem, 
-                                                GET_CH(channel), 
-                                                rad->cw_output, 0x7E, 
-                                                rad->cw_output, 0x3F);
+#endif
+	    //at86rf215_setup_channel (&rad->cariboulite_sys->modem, at86rf215_rf_channel_900mhz, 870000000);
+	    at86rf215_setup_channel (&rad->cariboulite_sys->modem, at86rf215_rf_channel_900mhz, rad->requested_rf_frequency);
 
             // transition to state TX
-            at86rf215_radio_set_state(&rad->cariboulite_sys->modem, 
-                                        GET_CH(channel),
-                                        at86rf215_radio_state_cmd_tx);
+            //at86rf215_radio_set_state(&rad->cariboulite_sys->modem, 
+            //                            GET_CH(channel),
+            //                            at86rf215_radio_state_cmd_tx);
+
+            at86rf215_iq_interface_config_st cfg;
+	    at86rf215_radio_tx_ctrl_st cfg2;
+
+	    for (int i=0; i<1; i++) {
+		    at86rf215_radio_get_tx_ctrl(&rad->cariboulite_sys->modem, at86rf215_rf_channel_900mhz,
+                                &cfg2);
+
+		    at86rf215_get_iq_if_cfg(&rad->cariboulite_sys->modem, 
+                                        &cfg,
+                                        true);
+		    sleep(1);
+	    }
 
         }
     }
 
     return 0;
+}
+
+int cariboulite_deactivate_channel(cariboulite_radios_st* radios, 
+                                cariboulite_channel_en channel,
+								bool active) {
+	return 0;
 }
 
 //======================================================================

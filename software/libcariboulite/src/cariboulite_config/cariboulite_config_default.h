@@ -47,10 +47,6 @@ extern "C" {
                     {                                                   \
                         .initialized = 0,                               \
                     },                                                  \
-                    .timer =                                            \
-                    {                                                   \
-                        .initialized = 0,                               \
-                    },                                                  \
                     .ice40 =                                            \
                     {                                                   \
                         .cs_pin = CARIBOULITE_FPGA_SS,                  \

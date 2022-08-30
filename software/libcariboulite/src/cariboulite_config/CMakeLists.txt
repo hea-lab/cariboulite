@@ -16,8 +16,8 @@ add_compile_options(-Wall -Wextra -Wno-missing-braces)
 
 #Generate the static library from the sources
 add_library(cariboulite_config STATIC ${SOURCES_LIB})
-add_executable(test_cariboulite_config ${SOURCES})
-target_link_libraries(test_cariboulite_config rt pthread ${EXTERN_LIBS})
+#add_executable(test_cariboulite_config ${SOURCES})
+#target_link_libraries(test_cariboulite_config rt pthread ${EXTERN_LIBS})
 
 # Set the location for library installation -- i.e., /usr/lib in this case
 # not really necessary in this example. Use "sudo make install" to apply

@@ -290,12 +290,12 @@ int cariboulite_setup_ext_ref ( cariboulite_st *sys, cariboulite_ext_ref_freq_en
         case cariboulite_ext_ref_26mhz:
             ZF_LOGD("Setting ext_ref = 26MHz");
             at86rf215_set_clock_output(&sys->modem, at86rf215_drive_current_2ma, at86rf215_clock_out_freq_26mhz);
-            rffc507x_setup_reference_freq(&sys->mixer, 26e6);
+            //rffc507x_setup_reference_freq(&sys->mixer, 26e6);
             break;
         case cariboulite_ext_ref_32mhz:
             ZF_LOGD("Setting ext_ref = 32MHz");
             at86rf215_set_clock_output(&sys->modem, at86rf215_drive_current_2ma, at86rf215_clock_out_freq_32mhz);
-            rffc507x_setup_reference_freq(&sys->mixer, 32e6);
+            //rffc507x_setup_reference_freq(&sys->mixer, 32e6);
             break;
         case cariboulite_ext_ref_off:
             ZF_LOGD("Setting ext_ref = OFF");
@@ -395,6 +395,7 @@ int cariboulite_init_submodules (cariboulite_st* sys)
 			break;
 	}
 
+#if 0
 	// The mixer - only relevant to the full version
 	if (sys->board_info.sys_type == cariboulite_system_type_full)
 	{
@@ -413,6 +414,7 @@ int cariboulite_init_submodules (cariboulite_st* sys)
 		//rffc507x_setup_reference_freq(&sys->mixer, 26e6);
 		rffc507x_calibrate(&sys->mixer);
 	}
+#endif
 
     ZF_LOGI("Cariboulite submodules successfully initialized");
     return 0;
@@ -441,6 +443,7 @@ int cariboulite_self_test(cariboulite_st* sys, cariboulite_self_test_result_st* 
         error_occured = 1;
     }
 
+#if 0
 	//------------------------------------------------------
 	// Mixer only relevant to the full version
 	if (sys->board_info.sys_type == cariboulite_system_type_full)
@@ -455,6 +458,7 @@ int cariboulite_self_test(cariboulite_st* sys, cariboulite_self_test_result_st* 
 			error_occured = 1;
 		}
 	}
+#endif
 
     //------------------------------------------------------
     ZF_LOGI("Testing smi communication");
@@ -493,6 +497,7 @@ int cariboulite_release_submodules(cariboulite_st* sys)
 		at86rf215_stop_iq_radio_receive (&sys->modem, at86rf215_rf_channel_2400mhz);
 		at86rf215_close(&sys->modem);
 
+#if 0
 		//------------------------------------------------------
 		// RFFC5072 only relevant to the full version
 		if (sys->board_info.sys_type == cariboulite_system_type_full)
@@ -500,6 +505,7 @@ int cariboulite_release_submodules(cariboulite_st* sys)
 			ZF_LOGD("CLOSE MIXER - RFFC5072");
 			rffc507x_release(&sys->mixer);
 		}
+#endif
 	}
 
 	if  (sys->system_status == cariboulite_sys_status_minimal_init)

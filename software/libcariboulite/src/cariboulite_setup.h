@@ -10,7 +10,7 @@ extern "C" {
 #include "latticeice40/latticeice40.h"
 #include "caribou_fpga/caribou_fpga.h"
 #include "at86rf215/at86rf215.h"
-#include "rffc507x/rffc507x.h"
+//#include "rffc507x/rffc507x.h"
 #include "caribou_smi/caribou_smi.h"
 #include "io_utils/io_utils.h"
 #include "io_utils/io_utils_spi.h"

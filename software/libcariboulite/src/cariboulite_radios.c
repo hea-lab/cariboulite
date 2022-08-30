@@ -529,6 +529,7 @@ typedef enum
 bool cariboulite_wait_for_lock( cariboulite_radio_state_st* rad, bool *mod, bool *mix, int retries)
 {
     bool mix_lock = true, mod_lock = true;
+#if 0
     if (mix)
     {
         rffc507x_device_status_st stat = {0};
@@ -543,6 +544,7 @@ bool cariboulite_wait_for_lock( cariboulite_radio_state_st* rad, bool *mod, bool
         *mix = stat.pll_lock;
         mix_lock = (bool)stat.pll_lock;
     }
+#endif
 
     if (mod)
     {
@@ -628,6 +630,7 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
     //--------------------------------------------------------------------------------
     else if (channel == cariboulite_channel_6g)
     {
+#if 0
         // Changing the frequency may sometimes need to break RX / TX
         if (break_before_make)
         {
@@ -770,6 +773,7 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
 
         // activate the channel according to the new configuration
         cariboulite_activate_channel(radios, channel, 1);
+#endif
     }
 
     if (error >= 0)
@@ -848,7 +852,7 @@ int cariboulite_activate_channel(cariboulite_radios_st* radios,
         if (rad->lo_output && channel == cariboulite_channel_6g)
         {
             // here we need to configure lo bypass on the mixer
-            rffc507x_output_lo(&rad->cariboulite_sys->mixer, 1);
+            //rffc507x_output_lo(&rad->cariboulite_sys->mixer, 1);
         }
         // otherwise we need the modem
         else

@@ -10,7 +10,7 @@ extern "C" {
 #include "latticeice40/latticeice40.h"
 #include "caribou_fpga/caribou_fpga.h"
 #include "at86rf215/at86rf215.h"
-#include "rffc507x/rffc507x.h"
+//#include "rffc507x/rffc507x.h"
 #include "caribou_smi/caribou_smi.h"
 #include "io_utils/io_utils.h"
 #include "io_utils/io_utils_spi.h"
@@ -93,7 +93,7 @@ typedef struct cariboulite_st_t
     latticeice40_st ice40;
     caribou_fpga_st fpga;
     at86rf215_st modem;
-    rffc507x_st mixer;
+    //rffc507x_st mixer;
 
     // Configuration
     int reset_fpga_on_startup;

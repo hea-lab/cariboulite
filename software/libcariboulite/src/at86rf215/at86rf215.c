@@ -375,8 +375,8 @@ void at86rf215_get_iq_if_cfg(at86rf215_st* dev, at86rf215_iq_interface_config_st
             printf("   Common mode voltage: %d mV\n", (cfg->common_mode_voltage+1) * 50 + 100);
         }
 
-        printf("   I/Q interface for sub-GHz: %s\n", cfg->radio09_mode==at86rf215_iq_if_mode?"enabled":"diabled");
-        printf("   I/Q interface for 2.4-GHz: %s\n", cfg->radio24_mode==at86rf215_iq_if_mode?"enabled":"diabled");
+        printf("   I/Q interface for sub-GHz: %s\n", cfg->radio09_mode==at86rf215_iq_if_mode?"enabled":"disabled");
+        printf("   I/Q interface for 2.4-GHz: %s\n", cfg->radio24_mode==at86rf215_iq_if_mode?"enabled":"disabled");
         printf("   I/Q Clock <=> Data skew: %.3f ns\n", cfg->clock_skew+1.906f);
 
         printf("   Status 'Sync Failure': %d\n", cfg->synchronization_failed);

@@ -199,7 +199,6 @@ SoapySDR::Stream *Cariboulite::setupStream(const int direction,
                             const std::vector<size_t> &channels, 
                             const SoapySDR::Kwargs &args)
 {
-    
 
     //cariboulite_radio_state_st* rad_s1g = GET_RADIO_PTR(radios,cariboulite_channel_s1g);
     
@@ -227,12 +226,11 @@ SoapySDR::Stream *Cariboulite::setupStream(const int direction,
 
 	printf("FORMAT %s\n", format.c_str());
 
-
     return (SoapySDR::Stream *)((void*)(demo));
-    }
+}
 
 void Cariboulite::closeStream(SoapySDR::Stream *stream)
-    {
+{
     SoapySDR_logf(SOAPY_SDR_INFO, "closeStream %x", stream);
 	if (stream) {
 		close(demo);
@@ -257,6 +255,7 @@ size_t Cariboulite::getStreamMTU(SoapySDR::Stream *stream) const
 
 
 struct stream_config stream_config;
+
 int Cariboulite::activateStream(SoapySDR::Stream *stream,
                                     const int flags,
                                     const long long timeNs,

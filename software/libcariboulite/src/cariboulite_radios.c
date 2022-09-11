@@ -570,9 +570,6 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
                                 bool break_before_make,
                                 double *freq)
 {
-	static bool done_once = false;
-
-	if (done_once) return;
     cariboulite_radio_state_st* rad = GET_RADIO_PTR(radios,channel);
 
     double f_rf = *freq;
@@ -580,8 +577,6 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
     double lo_act_freq = 0.0;
     double act_freq = 0.0;
     int error = 0;
-    cariboulite_ext_ref_freq_en ext_ref_choice = cariboulite_ext_ref_off;
-    conversion_dir_en conversion_direction = conversion_dir_none;
 
     //--------------------------------------------------------------------------------
     // SUB 1GHZ CONFIGURATION
@@ -625,156 +620,6 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
             error = -1;
         }
     }
-    //--------------------------------------------------------------------------------
-    // 30-6GHz CONFIGURATION
-    //--------------------------------------------------------------------------------
-    else if (channel == cariboulite_channel_6g)
-    {
-#if 0
-        // Changing the frequency may sometimes need to break RX / TX
-        if (break_before_make)
-        {
-            // make sure that during the transition the modem is not transmitting and then
-            // verify that the FE is in low power mode
-            at86rf215_radio_set_state( &rad->cariboulite_sys->modem, 
-                                    at86rf215_rf_channel_2400mhz, 
-                                    at86rf215_radio_state_cmd_trx_off);
-            rad->state = at86rf215_radio_state_cmd_trx_off;
-
-            caribou_fpga_set_io_ctrl_mode (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_low_power);
-        }
-
-        // Calculate the best ext_ref
-        double f_rf_mod_32 = (f_rf / 32e6);
-        double f_rf_mod_26 = (f_rf / 26e6);
-        f_rf_mod_32 -= (uint64_t)(f_rf_mod_32);
-        f_rf_mod_26 -= (uint64_t)(f_rf_mod_26);
-		f_rf_mod_32 *= 32e6;
-        f_rf_mod_26 *= 26e6;
-        if (f_rf_mod_32 > 16e6) f_rf_mod_32 = 32e6 - f_rf_mod_32;
-        if (f_rf_mod_26 > 13e6) f_rf_mod_26 = 26e6 - f_rf_mod_26;
-        ext_ref_choice = f_rf_mod_32 > f_rf_mod_26 ? cariboulite_ext_ref_32mhz : cariboulite_ext_ref_26mhz;
-        cariboulite_setup_ext_ref (rad->cariboulite_sys, ext_ref_choice);
-
-        // Decide the conversion direction and IF/RF/LO
-        //-------------------------------------
-        if (f_rf >= CARIBOULITE_MIN_MIX && 
-            f_rf <= (CARIBOULITE_2G4_MIN) )
-        {
-            // region #1 - UP CONVERSION
-            uint32_t modem_freq = CARIBOULITE_2G4_MAX;
-            //if (f_rf > (CARIBOULITE_2G4_MAX/2 - 15e6) && f_rf < (CARIBOULITE_2G4_MAX/2 + 15e6)) modem_freq = CARIBOULITE_2G4_MIN;
-            modem_act_freq = (double)at86rf215_setup_channel (&rad->cariboulite_sys->modem, 
-                                                        at86rf215_rf_channel_2400mhz, 
-                                                        modem_freq);
-            
-            // setup mixer LO according to the actual modem frequency
-            lo_act_freq = rffc507x_set_frequency(&rad->cariboulite_sys->mixer, modem_act_freq - f_rf);
-            act_freq = modem_act_freq - lo_act_freq;
-
-            // setup fpga RFFE <= upconvert (tx / rx)
-            conversion_direction = conversion_dir_up;
-        }
-        //-------------------------------------
-        else if ( f_rf > CARIBOULITE_2G4_MIN && 
-                f_rf <= CARIBOULITE_2G4_MAX )
-        {
-			cariboulite_setup_ext_ref (rad->cariboulite_sys, cariboulite_ext_ref_off);
-            // region #2 - bypass mode
-            // setup modem frequency <= f_rf
-            modem_act_freq = (double)at86rf215_setup_channel (&rad->cariboulite_sys->modem, 
-                                                        at86rf215_rf_channel_2400mhz, 
-                                                        (uint32_t)f_rf);
-            lo_act_freq = 0;
-            act_freq = modem_act_freq;
-            conversion_direction = conversion_dir_none;
-        }
-        //-------------------------------------
-        else if ( f_rf > (CARIBOULITE_2G4_MAX) && 
-                f_rf <= CARIBOULITE_MAX_MIX )
-        {
-            // region #3 - DOWN-CONVERSION
-            // setup modem frequency <= CARIBOULITE_2G4_MIN
-            modem_act_freq = (double)at86rf215_setup_channel (&rad->cariboulite_sys->modem, 
-                                                        at86rf215_rf_channel_2400mhz, 
-                                                        (uint32_t)(CARIBOULITE_2G4_MIN));
-
-            uint32_t lo = f_rf + modem_act_freq;
-            //if (f_rf > (CARIBOULITE_2G4_MIN*2 + CARIBOULITE_MIN_LO)) lo = f_rf - modem_act_freq;
-            // setup mixer LO to according to actual modem frequency
-            lo_act_freq = rffc507x_set_frequency(&rad->cariboulite_sys->mixer, f_rf - modem_act_freq);
-            act_freq = lo_act_freq + modem_act_freq;
-            //if (f_rf > (CARIBOULITE_2G4_MIN*2 + CARIBOULITE_MIN_LO)) act_freq = modem_act_freq + lo_act_freq;
-
-            // setup fpga RFFE <= downconvert (tx / rx)
-            conversion_direction = conversion_dir_down;
-        }
-        //-------------------------------------
-        else
-        {
-            // error - unsupported frequency for 6G channel
-            ZF_LOGE("unsupported frequency for 6GHz channel - %.2f Hz", f_rf);
-            error = -1;
-        }
-
-        // Setup the frontend
-        // This step takes the current radio direction of communication
-        // and the down/up conversion decision made before to setup the RF front-end
-        switch (conversion_direction)
-        {
-            case conversion_dir_up: 
-                if (rad->channel_direction == cariboulite_channel_dir_rx) 
-                {
-                    caribou_fpga_set_io_ctrl_mode (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_rx_lowpass);
-                }
-                else if (rad->channel_direction == cariboulite_channel_dir_tx)
-                {
-                    caribou_fpga_set_io_ctrl_mode (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_tx_lowpass);
-                }
-                break;
-            case conversion_dir_none: 
-                caribou_fpga_set_io_ctrl_mode (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_bypass);
-                break;
-            case conversion_dir_down:
-                if (rad->channel_direction == cariboulite_channel_dir_rx)
-                {
-                    caribou_fpga_set_io_ctrl_mode (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_rx_hipass);
-                }
-                else if (rad->channel_direction == cariboulite_channel_dir_tx)
-                {
-                    caribou_fpga_set_io_ctrl_mode (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_tx_hipass);
-                }
-                break;
-            default: break;
-        }
-
-        // Make sure the LO and the IF PLLs are locked
-        at86rf215_radio_set_state( &rad->cariboulite_sys->modem, 
-                                    GET_CH(channel), 
-                                    at86rf215_radio_state_cmd_tx_prep);
-        rad->state = at86rf215_radio_state_cmd_tx_prep;
-
-        if (!cariboulite_wait_for_lock(rad, &rad->modem_pll_locked, 
-                                            lo_act_freq > CARIBOULITE_MIN_LO ? &rad->lo_pll_locked : NULL, 
-                                            100))
-        {
-            if (!rad->lo_pll_locked) ZF_LOGE("PLL MIXER failed to lock LO frequency (%.2f Hz)", lo_act_freq);
-            if (!rad->modem_pll_locked) ZF_LOGE("PLL MODEM failed to lock IF frequency (%.2f Hz)", modem_act_freq);
-            error = 1;
-        }
-
-        // Update the actual frequencies
-        rad->lo_frequency = lo_act_freq;
-        rad->if_frequency = modem_act_freq;
-        rad->actual_rf_frequency = act_freq;
-        rad->requested_rf_frequency = f_rf;
-        rad->rf_frequency_error = rad->actual_rf_frequency - rad->requested_rf_frequency;
-        if (freq) *freq = act_freq;
-
-        // activate the channel according to the new configuration
-        cariboulite_activate_channel(radios, channel, 1);
-#endif
-    }
 
     if (error >= 0)
     {
@@ -782,7 +627,6 @@ int cariboulite_set_frequency(  cariboulite_radios_st* radios,
                         channel, f_rf, act_freq, modem_act_freq, lo_act_freq);
     }
 
-	done_once = true;
     return -error;
 }
 
@@ -857,9 +701,9 @@ int cariboulite_activate_channel(cariboulite_radios_st* radios,
         // otherwise we need the modem
         else
         {
-#if 1
+#if 0
 
-	        at86rf215_radio_tx_ctrl_st tx_config =
+			at86rf215_radio_tx_ctrl_st tx_config =
     {
         .pa_ramping_time = at86rf215_radio_tx_pa_ramp_32usec,
         .current_reduction = at86rf215_radio_pa_current_reduction_0ma,
@@ -872,7 +716,6 @@ int cariboulite_activate_channel(cariboulite_radios_st* radios,
     at86rf215_radio_setup_tx_ctrl(&rad->cariboulite_sys->modem, GET_CH(channel), &tx_config);
 
 #endif
-	    //at86rf215_setup_channel (&rad->cariboulite_sys->modem, at86rf215_rf_channel_900mhz, 870000000);
 	    at86rf215_setup_channel (&rad->cariboulite_sys->modem, at86rf215_rf_channel_900mhz, rad->requested_rf_frequency);
 
             // transition to state TX

@@ -4,13 +4,13 @@ set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Bring the headers
-include_directories(./ ./include)
+include_directories(./ ./include ../kernel)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
 # ------------------------------------
 # MAIN - Source files for main library
 # ------------------------------------
-set(SOURCES_LIB src/cariboulite_setup.c src/cariboulite_events.c src/cariboulite_radios.c)
+set(SOURCES_LIB src/cariboulite_setup.c src/cariboulite_radios.c)
 
 # Add internal project dependencies
 add_subdirectory(src/caribou_fpga EXCLUDE_FROM_ALL)

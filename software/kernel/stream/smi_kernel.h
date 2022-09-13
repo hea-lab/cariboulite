@@ -5,18 +5,14 @@
 
 #define GET_METADATA _IOR('a',2,struct md)
 
-#define SETUP_STREAM_TX _IOR('a',3,struct setup_stream)
-#define SETUP_STREAM_RX _IOR('a',4,struct setup_stream)
+#define SETUP_STREAM_TX _IO('a',3)
+#define SETUP_STREAM_RX _IO('a',4)
 
-#define CLOSE_STREAM_TX _IOR('a',5,struct setup_stream)
-#define CLOSE_STREAM_RX _IOR('a',6,struct setup_stream)
+#define CLOSE_STREAM_TX _IO('a',5)
+#define CLOSE_STREAM_RX _IO('a',6)
 
-#define DEACTIVATE_STREAM_TX _IOW('a',7,struct stream_config)
-#define DEACTIVATE_STREAM_RX _IOW('a',8,struct stream_config)
-
-struct setup_stream {
-	bool is_rx;
-};
+#define DEACTIVATE_STREAM_TX _IO('a',7)
+#define DEACTIVATE_STREAM_RX _IO('a',8)
 
 struct stream_config {
 	uint64_t activation_time; 

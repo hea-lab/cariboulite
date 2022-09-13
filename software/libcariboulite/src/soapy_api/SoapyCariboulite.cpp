@@ -11,6 +11,8 @@ SoapySDR::KwargsList findCariboulite(const SoapySDR::Kwargs &args)
 
     SoapySDR::Kwargs soapyInfo;
 
+	/* TODO */
+
     soapyInfo["device_id"] = "112233";
     soapyInfo["label"] = "mySDR";
     soapyInfo["serial"] = "0123456789ABCDEF";

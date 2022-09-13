@@ -235,10 +235,12 @@ static long mychardev_ioctl(struct file *file, unsigned int cmd, unsigned long a
                         }
                         break;
                 case DEACTIVATE_STREAM_TX: 
-					printk("DEACTIVATE_STREAM_TX");
+						/* TODO stop DMA transfer and cleanup */
+						printk("DEACTIVATE_STREAM_TX");
                         break;
                 case DEACTIVATE_STREAM_RX: 
-					printk("DEACTIVATE_STREAM_TX");
+						/* TODO stop DMA transfer and cleanup */
+						printk("DEACTIVATE_STREAM_TX");
                         break;
                 case CLOSE_STREAM_TX: 
 					printk("CLOSE_STREAM_TX");

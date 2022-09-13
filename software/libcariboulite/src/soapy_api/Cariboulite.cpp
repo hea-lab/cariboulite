@@ -10,6 +10,8 @@ Cariboulite::Cariboulite(const SoapySDR::Kwargs &args)
 {
     cariboulite_init_radios(&radios, &sess.cariboulite_sys);
 
+	_current_mode=HACKRF_TRANSCEIVER_MODE_OFF;
+
     // TODO: Exception when error
 }
 

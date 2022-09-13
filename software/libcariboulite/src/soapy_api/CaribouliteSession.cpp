@@ -30,7 +30,6 @@ void soapy_sighandler( struct cariboulite_st_t *sys,
     SoapySDR_logf(SOAPY_SDR_INFO, "soapy_sighandler killing soapy_cariboulite (cariboulite_release_driver)");
     std::lock_guard<std::mutex> lock(SoapyCaribouliteSession::sessionMutex);
     cariboulite_release_driver(&(SoapyCaribouliteSession::cariboulite_sys));
-    //SoapyCaribouliteSession::sessionCount = 0;
 }
 
 
@@ -38,8 +37,9 @@ void soapy_sighandler( struct cariboulite_st_t *sys,
 SoapyCaribouliteSession::SoapyCaribouliteSession(void)
 {
     std::lock_guard<std::mutex> lock(sessionMutex);
-    //printf("SoapyCaribouliteSession, sessionCount: %ld\n", sessionCount);
+
     SoapySDR_logf(SOAPY_SDR_INFO, "SoapyCaribouliteSession, sessionCount: %ld", sessionCount);
+
     if (sessionCount == 0)
     {
         CARIBOULITE_CONFIG_DEFAULT(temp);
@@ -63,12 +63,12 @@ SoapyCaribouliteSession::SoapyCaribouliteSession(void)
 SoapyCaribouliteSession::~SoapyCaribouliteSession(void)
 {
     std::lock_guard<std::mutex> lock(sessionMutex);
-    //printf("~SoapyCaribouliteSession, sessionCount: %ld\n", sessionCount);
-    //SoapySDR_logf(SOAPY_SDR_INFO, "~SoapyCaribouliteSession, sessionCount: %ld", sessionCount);
+
+    SoapySDR_logf(SOAPY_SDR_INFO, "~SoapyCaribouliteSession, sessionCount: %ld", sessionCount);
+
     sessionCount--;
     if (sessionCount == 0)
     {
         cariboulite_release_driver(&cariboulite_sys);
     }
-    //SoapySDR_logf(SOAPY_SDR_INFO, "~SoapyCaribouliteSession CaribouLite released");
 }

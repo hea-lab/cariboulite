@@ -67,38 +67,38 @@ static int mychardev_uevent(struct device *dev, struct kobj_uevent_env *env)
 
 static int __init mychardev_init(void)
 {
-    int err;
-    dev_t dev;
+	int err;
+	dev_t dev;
 
-    err = alloc_chrdev_region(&dev, 0, 1, "mychardev");
+	err = alloc_chrdev_region(&dev, 0, 1, "mychardev");
 
-    dev_major = MAJOR(dev);
+	dev_major = MAJOR(dev);
 
-    mychardev_class = class_create(THIS_MODULE, "mychardev");
-    mychardev_class->dev_uevent = mychardev_uevent;
+	mychardev_class = class_create(THIS_MODULE, "mychardev");
+	mychardev_class->dev_uevent = mychardev_uevent;
 
-        cdev_init(&mychardev_data.cdev, &mychardev_fops);
-        mychardev_data.cdev.owner = THIS_MODULE;
+	cdev_init(&mychardev_data.cdev, &mychardev_fops);
+	mychardev_data.cdev.owner = THIS_MODULE;
 
-        cdev_add(&mychardev_data.cdev, MKDEV(dev_major, 0), 1);
+	cdev_add(&mychardev_data.cdev, MKDEV(dev_major, 0), 1);
 
-        device_create(mychardev_class, NULL, MKDEV(dev_major, 0), NULL, "mychardev");
+	device_create(mychardev_class, NULL, MKDEV(dev_major, 0), NULL, "mychardev");
 
-        init_waitqueue_head(&inst->readable);
-        mutex_init(&inst->read_lock);
+	init_waitqueue_head(&inst->readable);
+	mutex_init(&inst->read_lock);
 
-    return 0;
+	return 0;
 }
 
 static void __exit mychardev_exit(void)
 {
 
-        device_destroy(mychardev_class, MKDEV(dev_major, 0));
+	device_destroy(mychardev_class, MKDEV(dev_major, 0));
 
-    class_unregister(mychardev_class);
-    class_destroy(mychardev_class);
+	class_unregister(mychardev_class);
+	class_destroy(mychardev_class);
 
-    unregister_chrdev_region(MKDEV(dev_major, 0), MINORMASK);
+	unregister_chrdev_region(MKDEV(dev_major, 0), MINORMASK);
 }
 
 static bool is_open = false;
@@ -148,23 +148,25 @@ int bam(uint32_t *samples, int nb_samples, uint64_t ts_first_sample) {
 
 static int mychardev_open(struct inode *inode, struct file *file)
 {
-        int ret;
+	int ret;
 
-    printk("MYCHARDEV: Device open\n");
+	printk("MYCHARDEV: Device open\n");
 
-        ret = kfifo_alloc(&inst->rx_fifo, 1024*1024/2, GFP_KERNEL);
+	/* TODO allocation should be done in activate_rx */
 
-        if (ret) {
-                printk(KERN_ERR "error kfifo_alloc\n");
-                return ret;
-        }
+	ret = kfifo_alloc(&inst->rx_fifo, 1024*1024/2, GFP_KERNEL);
 
-        inst->streaming = false;
-        inst->meta_data.timestamp = 0;
+	if (ret) {
+		printk(KERN_ERR "error kfifo_alloc\n");
+		return ret;
+	}
 
-        is_open = true;
+	inst->streaming = false;
+	inst->meta_data.timestamp = 0;
 
-    return 0;
+	is_open = true;
+
+	return 0;
 }
 
 static int mychardev_release(struct inode *inode, struct file *file)
@@ -185,19 +187,30 @@ static long mychardev_ioctl(struct file *file, unsigned int cmd, unsigned long a
         static bool check_at = false;
 
         switch (cmd) {
-                case SETUP_STREAM: 
-                        //if (copy_from_user(&inst->setup_stream, (void *)arg, sizeof(struct setup_stream))) {
-                        //        printk("setup stream copy failed.");
-                        //} else {
-                        //        printk("setup stream is_rx %d.", inst->setup_stream.is_rx);
-			//	if (inst->setup_stream.is_rx) {
-			//		bcm2835_smi_start();
-			//	}
-			//}
-
-                        break;
+                case SETUP_STREAM_TX: 
+					/* nothing to do */
+					printk("SETUP_STREAM_TX");
+					break;
+                case SETUP_STREAM_RX: 
+					/* nothing to do */
+					printk("SETUP_STREAM_RX");
+					break;
+					/* nothing to do */
+					//if (copy_from_user(&inst->setup_stream, (void *)arg, sizeof(struct setup_stream))) {
+					//        printk("setup stream copy failed.");
+					//} else {
+					//        printk("setup stream is_rx %d.", inst->setup_stream.is_rx);
+					//	if (inst->setup_stream.is_rx) {
+					//		bcm2835_smi_start();
+					//	}
+					//}
 		
-                case ACTIVATE_STREAM: 
+                case ACTIVATE_STREAM_TX: 
+					/* nothing to do */
+					printk("ACTIVATE_STREAM_RX");
+					break;
+
+                case ACTIVATE_STREAM_RX: 
 
                         if (copy_from_user(&inst->stream_config, (void *)arg, sizeof(struct stream_config))) {
                                 printk("stream config copy failed.");
@@ -220,6 +233,18 @@ static long mychardev_ioctl(struct file *file, unsigned int cmd, unsigned long a
 
                                 inst->streaming = true;
                         }
+                        break;
+                case DEACTIVATE_STREAM_TX: 
+					printk("DEACTIVATE_STREAM_TX");
+                        break;
+                case DEACTIVATE_STREAM_RX: 
+					printk("DEACTIVATE_STREAM_TX");
+                        break;
+                case CLOSE_STREAM_TX: 
+					printk("CLOSE_STREAM_TX");
+                        break;
+                case CLOSE_STREAM_RX: 
+					printk("CLOSE_STREAM_RX");
                         break;
 
                 case GET_METADATA:

@@ -1,6 +1,11 @@
 #include "Cariboulite.hpp"
 #include "cariboulite_config/cariboulite_config_default.h"
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>  
 #include "stream/smi_kernel.h"
 
 //========================================================
@@ -45,7 +50,6 @@ std::string Cariboulite::getNativeStreamFormat(const int direction, const size_t
 */
 SoapySDR::ArgInfoList Cariboulite::getStreamArgsInfo(const int direction, const size_t channel) const
 {
-    //printf("getStreamArgsInfo start\n");
 	SoapySDR::ArgInfoList streamArgs;
 	return streamArgs;
 }
@@ -100,58 +104,68 @@ SoapySDR::ArgInfoList Cariboulite::getStreamArgsInfo(const int direction, const 
 * concurrently from multiple threads.
 * \endparblock
 */
-int demo = 0;
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>  
 SoapySDR::Stream *Cariboulite::setupStream(const int direction, 
                             const std::string &format, 
                             const std::vector<size_t> &channels, 
                             const SoapySDR::Kwargs &args)
 {
 
-	//cariboulite_radio_state_st* rad_s1g = GET_RADIO_PTR(radios,cariboulite_channel_s1g);
+	std::lock_guard<std::mutex> lock(_device_mutex);
 
-	std::vector<size_t> channels_internal = channels;
-	// default channel - sub1GHz
-	if ( channels_internal.size() == 0 )
-	{
-		channels_internal.push_back(cariboulite_channel_s1g);
+	if (direction==SOAPY_SDR_RX){
+		if (_rx_stream.opened) {
+			throw std::runtime_error("RX stream already opened");
+		}
+
+		_rx_stream.opened = true;
+
+	} else if (direction==SOAPY_SDR_TX){
+		if (_tx_stream.opened) {
+			throw std::runtime_error("TX stream already opened");
+		}
+
+		_tx_stream.opened = true;
+
+	} else {
+		throw std::runtime_error("Invalid direction");
 	}
 
-	// currently we take only the first channel
-	size_t ch = channels_internal[0];
-
-	cariboulite_channel_en channel = (ch == cariboulite_channel_s1g) ? cariboulite_channel_s1g : cariboulite_channel_6g;
-	cariboulite_channel_dir_en channel_dir = (direction == SOAPY_SDR_RX) ? cariboulite_channel_dir_rx : cariboulite_channel_dir_tx;
-
-	cariboulite_setup_stream(&radios, channel, channel_dir);
-
-	/* TODO verify if already opened */
-	demo = open("/dev/mychardev", O_RDWR);
+	int demo = open("/dev/mychardev", O_RDWR);
 
 	struct setup_stream setup_stream;
 
 	setup_stream.is_rx = direction == SOAPY_SDR_RX;
-	/* TODO introduce SETUP_STREAM_TX, SETUP_STREAM_RX */
-	ioctl(demo, SETUP_STREAM, (unsigned long)&setup_stream);
+
 	SoapySDR_logf(SOAPY_SDR_INFO, "setupStream %x", demo);
 
-	printf("FORMAT %s\n", format.c_str());
+	if (direction==SOAPY_SDR_RX){
+		_rx_stream.stream = (SoapySDR::Stream *)((long)(demo));
+		ioctl(demo, SETUP_STREAM_RX, (unsigned long)&setup_stream);
+	} else {
+		_tx_stream.stream = (SoapySDR::Stream *)((long)(demo));
+		ioctl(demo, SETUP_STREAM_TX, (unsigned long)&setup_stream);
+	}
 
-	return (SoapySDR::Stream *)((void*)(demo));
+	return (SoapySDR::Stream *)((long)(demo));
 }
 
 void Cariboulite::closeStream(SoapySDR::Stream *stream)
 {
+	std::lock_guard<std::mutex> lock(_device_mutex);
+
     SoapySDR_logf(SOAPY_SDR_INFO, "closeStream %x", stream);
-	/* FIXME double close */
-	if (stream) {
-		close(demo);
-    }
+
+	if (stream == _rx_stream.stream) {
+		_rx_stream.opened = false;
+		_rx_stream.stream = (SoapySDR::Stream *)((long)(0));
+		ioctl((long)stream, CLOSE_STREAM_RX, NULL);
+		close((long)stream);
+	} else if (stream == _tx_stream.stream) {
+		_tx_stream.opened = false;
+		_tx_stream.stream = (SoapySDR::Stream *)((long)(0));
+		ioctl((long)stream, CLOSE_STREAM_TX, NULL);
+		close((long)stream);
+	}
 }
 
 //========================================================
@@ -169,31 +183,64 @@ size_t Cariboulite::getStreamMTU(SoapySDR::Stream *stream) const
     return 1024 * 1024 / 2 / 4;
 }
 
-
-struct stream_config stream_config;
-
 int Cariboulite::activateStream(SoapySDR::Stream *stream,
                                     const int flags,
                                     const long long timeNs,
                                     const size_t numElems)
 {
+
     printf("activateStream flags %d timeNs %lld numElems %ld\n", flags, timeNs, numElems);
 
-    cariboulite_activate_channel(&radios, 
-                                cariboulite_channel_s1g, 
-                                true);
+	/* TODO check what is going on */
+	if (stream == _rx_stream.stream) {
+		std::lock_guard<std::mutex> lock(_device_mutex);
 
-	stream_config.activation_time = timeNs;
-	stream_config.flags = flags;
-	stream_config.num_elements = numElems;
+		if(_current_mode==HACKRF_TRANSCEIVER_MODE_RX)
+			return 0;
 
-	/* TODO introduce ACIVATE_STREAM_RX/TX, DEACTIVATE_STREAM_RX/TX */
-	/* introduire parametre _current_mode _stream_rx, or stream_tx */
-	/* il faudra surement un dev_mutex */
+		if(_current_mode==HACKRF_TRANSCEIVER_MODE_TX) {
+			/* 1) TODO wait if burst_end  == true */
 
-	/* stocker la freq, le sampling rate, le gain etc et configurer au besoin */
+			/* 2) stop TX */
 
-    return ioctl(demo, ACTIVATE_STREAM, (unsigned long)&stream_config);
+		}
+
+		cariboulite_setup_stream(&radios, cariboulite_channel_s1g, cariboulite_channel_dir_rx);
+
+		_current_mode = HACKRF_TRANSCEIVER_MODE_RX;
+
+		/* 3) start RX */
+	} else if (stream == _tx_stream.stream) {
+		if(_current_mode==HACKRF_TRANSCEIVER_MODE_TX)
+			return 0;
+
+		if(_current_mode==HACKRF_TRANSCEIVER_MODE_RX) {
+		}
+
+		cariboulite_setup_stream(&radios, cariboulite_channel_s1g, cariboulite_channel_dir_tx);
+
+		_current_mode = HACKRF_TRANSCEIVER_MODE_TX;
+	}
+
+    cariboulite_activate_channel(&radios, cariboulite_channel_s1g, true);
+
+	if (stream == _rx_stream.stream) {
+		struct stream_config stream_config;
+
+		stream_config.activation_time = timeNs;
+		stream_config.flags = flags;
+		stream_config.num_elements = numElems;
+
+		/* TODO introduce ACIVATE_STREAM_RX/TX, DEACTIVATE_STREAM_RX/TX */
+		/* introduire parametre _current_mode _stream_rx, or stream_tx */
+		/* il faudra surement un dev_mutex */
+
+		/* stocker la freq, le sampling rate, le gain etc et configurer au besoin */
+
+		return ioctl((long)stream, ACTIVATE_STREAM_RX, (unsigned long)&stream_config);
+	} else {
+		return 0;
+	}
 }
 
 //========================================================
@@ -220,6 +267,9 @@ int Cariboulite::deactivateStream(SoapySDR::Stream *stream, const int flags, con
     int res = cariboulite_deactivate_channel(&radios, 
                                 cariboulite_channel_s1g, 
                                 true);
+
+	_current_mode = HACKRF_TRANSCEIVER_MODE_OFF;
+
     return res;
     }
 
@@ -231,7 +281,7 @@ int Cariboulite::writeStream(
             const long long timeNs,
             const long timeoutUs)
 {
-	int n = write(demo, (char*) buffs[0], numElems*sizeof(uint32_t)); 
+	int n = write((long) stream, (char*) buffs[0], numElems*sizeof(uint32_t)); 
 	return n;
 }
 
@@ -251,7 +301,7 @@ int Cariboulite::readStream(
 	/* we need to retreive metadata */
 	printf("readStream\n");
 
-    long ret = ioctl(demo, GET_METADATA, (unsigned long)&md);
+    long ret = ioctl((long) stream, GET_METADATA, (unsigned long)&md);
 
 	printf("readStream_ioctl %ld\n", ret);
 	sample_complex_float *bam = (sample_complex_float*) buffs[0];
@@ -262,7 +312,7 @@ int Cariboulite::readStream(
 		uint8_t temp_buf[numElems*4];
 		
 		//printf("readStream %lld\n", numElems);
-		n = read(demo, temp_buf, numElems*sizeof(uint32_t)); 
+		n = read((long) stream, temp_buf, numElems*sizeof(uint32_t)); 
 
 		for (int i = 0; i<numElems; i++) {
 			bam[i].i = ((float)((temp_buf[4*i] << 8) + temp_buf[4*i+1]));

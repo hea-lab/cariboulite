@@ -25,11 +25,6 @@ extern "C" {
 #define CARIBOULITE_MODEM_IRQ 22
 #define CARIBOULITE_MODEM_RESET 23
 
-// PINOUT MIXER - RFFC5072
-#define CARIBOULITE_MIXER_SPI_CHANNEL 2
-#define CARIBOULITE_MIXER_SS 16
-#define CARIBOULITE_MIXER_RESET 5
-
 //=======================================================================================
 // SYSTEM DEFINITIONS & CONFIGURATIONS
 //=======================================================================================

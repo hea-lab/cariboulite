@@ -2,30 +2,25 @@
 #include <SoapySDR/Registry.hpp>
 #include "Cariboulite.hpp"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 /***********************************************************************
  * Find available devices
  **********************************************************************/
 SoapySDR::KwargsList findCariboulite(const SoapySDR::Kwargs &args)
 {
-    int count = 0;
     std::vector<SoapySDR::Kwargs> results;
-    
 
-        SoapySDR::Kwargs soapyInfo;
+    SoapySDR::Kwargs soapyInfo;
 
-	soapyInfo["device_id"] = "112233";
-	soapyInfo["label"] = "mySDR";
-	soapyInfo["serial"] = "0123456789ABCDEF";
-	soapyInfo["name"] = "mysdr";
-	soapyInfo["vendor"] = "product_vendor";
-	soapyInfo["uuid"] = "board_info.product_uuid";
-	soapyInfo["version"] = "board_info.product_version";
-        
-        results.push_back(soapyInfo);
-   
+    soapyInfo["device_id"] = "112233";
+    soapyInfo["label"] = "mySDR";
+    soapyInfo["serial"] = "0123456789ABCDEF";
+    soapyInfo["name"] = "mysdr";
+    soapyInfo["vendor"] = "product_vendor";
+    soapyInfo["uuid"] = "board_info.product_uuid";
+    soapyInfo["version"] = "board_info.product_version";
+
+    results.push_back(soapyInfo);
+
     return results;
 }
 
@@ -41,5 +36,3 @@ SoapySDR::Device *makeCariboulite(const SoapySDR::Kwargs &args)
  * Registration
  **********************************************************************/
 static SoapySDR::Registry registerCariboulite("MySDR", &findCariboulite, &makeCariboulite, SOAPY_SDR_ABI_VERSION);
-
-#pragma GCC diagnostic pop

@@ -17,7 +17,6 @@
 //#define ZF_LOG_LEVEL ZF_LOG_ERROR
 #define ZF_LOG_LEVEL ZF_LOG_VERBOSE
 
-//#include "datatypes/circular_buffer.h"
 #include "cariboulite_setup.h"
 #include "cariboulite_radios.h"
 
@@ -29,8 +28,11 @@ enum Cariboulite_Format
 	CARIBOULITE_FORMAT_FLOAT64  = 3,
 };
 
-#define NUM_SAMPLEQUEUE_BUFS            ( 3 )
-#define NUM_BYTES_PER_CPLX_ELEM         ( 4 )
+typedef enum {
+	HACKRF_TRANSCEIVER_MODE_OFF = 0,
+	HACKRF_TRANSCEIVER_MODE_RX = 1,
+	HACKRF_TRANSCEIVER_MODE_TX = 2,
+} HackRF_transceiver_mode_t;
 
 #pragma pack(1)
 // associated with CS8 - total 2 bytes / element
@@ -79,36 +81,6 @@ public:
         static cariboulite_st cariboulite_sys;
         static std::mutex sessionMutex;
         static size_t sessionCount;
-};
-
-
-class SampleQueue
-{
-public:
-        SampleQueue(int mtu_bytes, int num_buffers);
-        ~SampleQueue();
-        int AttachStreamId(int id, int dir, int channel);
-        int Write(caribou_smi_sample_complex_int16 *buffer, size_t num_samples, uint8_t* meta, long timeout_us);
-        int Read(caribou_smi_sample_complex_int16 *buffer, size_t num_samples, uint8_t *meta, long timeout_us);
-
-        int ReadSamples(caribou_smi_sample_complex_int16* buffer, size_t num_elements, long timeout_us);
-        int ReadSamples(sample_complex_float* buffer, size_t num_elements, long timeout_us);
-        int ReadSamples(sample_complex_double* buffer, size_t num_elements, long timeout_us);
-        int ReadSamples(sample_complex_int8* buffer, size_t num_elements, long timeout_us);
-
-        int stream_id;
-        int stream_dir;
-        int stream_channel;
-        int is_cw;
-        Cariboulite_Format chosen_format;
-		int dig_filt;
-private:
-        size_t mtu_size_bytes;
-        uint8_t *partial_buffer;
-        int partial_buffer_start;
-        int partial_buffer_length;
-
-        caribou_smi_sample_complex_int16 *interm_native_buffer;
 };
 
 /***********************************************************************
@@ -168,9 +140,6 @@ public:
                         const long long = 0,
                         const long timeoutUs = 100000);
 
-        int findSampleQueue(const int direction, const size_t channel);
-        int findSampleQueueById(int stream_id);
-
         /*******************************************************************
          * Antenna API
          ******************************************************************/
@@ -215,21 +184,47 @@ public:
         double getBandwidth( const int direction, const size_t channel ) const;
         std::vector<double> listBandwidths( const int direction, const size_t channel ) const;
 
-        /*******************************************************************
-         * Sensors API
-         ******************************************************************/
-#if 0
-        virtual std::vector<std::string> listSensors(const int direction, const size_t channel) const;
-        virtual SoapySDR::ArgInfo getSensorInfo(const int direction, const size_t channel, const std::string &key) const;
-        virtual std::string readSensor(const int direction, const size_t channel, const std::string &key) const;
-        template <typename Type>
-        Type readSensor(const int direction, const size_t channel, const std::string &key) const;
-#endif
-
 public:
         cariboulite_radios_st radios;
-        //SampleQueue* sample_queues[4];
-
-        // Static load time initializations
         static SoapyCaribouliteSession sess;
+
+private:
+	mutable std::mutex	_device_mutex;
+
+	struct Stream {
+		Stream(): opened(false) {}
+
+		SoapySDR::Stream* stream;
+		bool opened;
+	};
+
+	struct RXStream: Stream {
+		uint32_t vga_gain;
+		uint32_t lna_gain;
+		uint8_t amp_gain;
+		double samplerate;
+		uint32_t bandwidth;
+		uint64_t frequency;
+
+		bool overflow;
+	};
+
+	struct TXStream: Stream {
+		uint32_t vga_gain;
+		uint8_t amp_gain;
+		double samplerate;
+		uint32_t bandwidth;
+		uint64_t frequency;
+		bool bias;
+
+		bool underflow;
+
+		bool burst_end;
+		int32_t burst_samps;
+	} ;
+
+	RXStream _rx_stream;
+	TXStream _tx_stream;
+
+	HackRF_transceiver_mode_t _current_mode;
 };

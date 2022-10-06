@@ -150,10 +150,10 @@ SoapySDR::Stream *Cariboulite::setupStream(const int direction,
  */
 void Cariboulite::closeStream(SoapySDR::Stream *stream)
 {
-	std::lock_guard<std::mutex> lock(_device_mutex);
 
     SoapySDR_logf(SOAPY_SDR_INFO, "closeStream %x", stream);
 
+	std::lock_guard<std::mutex> lock(_device_mutex);
 	if (stream == _rx_stream.stream) {
 		_rx_stream.opened = false;
 		_rx_stream.stream = (SoapySDR::Stream *)((long)(0));
@@ -219,11 +219,11 @@ int Cariboulite::activateStream(SoapySDR::Stream *stream,
 			ioctl((long)stream, DEACTIVATE_STREAM_TX);
 		}
 
+		/* 3) start RX */
 		cariboulite_setup_stream(&radios, cariboulite_channel_s1g, cariboulite_channel_dir_rx);
 
 		_current_mode = HACKRF_TRANSCEIVER_MODE_RX;
 
-		/* 3) start RX */
 	} else if (stream == _tx_stream.stream) {
 		std::lock_guard<std::mutex> lock(_device_mutex);
 
@@ -250,7 +250,6 @@ int Cariboulite::activateStream(SoapySDR::Stream *stream,
 
 		/* TODO introduce ACIVATE_STREAM_RX/TX, DEACTIVATE_STREAM_RX/TX */
 		/* introduire parametre _current_mode _stream_rx, or stream_tx */
-		/* il faudra surement un dev_mutex */
 
 		/* stocker la freq, le sampling rate, le gain etc et configurer au besoin */
 
@@ -361,28 +360,26 @@ int Cariboulite::readStream(
 	/* TODO timeoutUs not supported yet */
 
 	/* we need to retreive metadata */
-	printf("readStream\n");
 
     long ret = ioctl((long) stream, GET_METADATA, (unsigned long)&md);
 
 	printf("readStream_ioctl %ld\n", ret);
-	sample_complex_float *bam = (sample_complex_float*) buffs[0];
+	sample_complex_float *buff = (sample_complex_float*) buffs[0];
 
 	if (ret == 0) {
 		flags = 0;
 		timeNs = md.timestamp;
 		uint8_t temp_buf[numElems*4];
 		
-		//printf("readStream %lld\n", numElems);
 		n = read((long) stream, temp_buf, numElems*sizeof(uint32_t)); 
 
 		for (int i = 0; i<numElems; i++) {
-			bam[i].i = ((float)((temp_buf[4*i] << 8) + temp_buf[4*i+1]));
-			bam[i].q = ((float)((temp_buf[4*i+2] << 8) + temp_buf[4*i+3]));
-			if (bam[i].i >= (int16_t)0x1000) bam[i].i -= (int16_t)0x2000;
-			if (bam[i].q >= (int16_t)0x1000) bam[i].q -= (int16_t)0x2000;
-			bam[i].i /= 4095.0;
-			bam[i].q /= 4095.0;
+			buff[i].i = ((float)((temp_buf[4*i] << 8) + temp_buf[4*i+1]));
+			buff[i].q = ((float)((temp_buf[4*i+2] << 8) + temp_buf[4*i+3]));
+			if (buff[i].i >= (int16_t)0x1000) buff[i].i -= (int16_t)0x2000;
+			if (buff[i].q >= (int16_t)0x1000) buff[i].q -= (int16_t)0x2000;
+			buff[i].i /= 4095.0;
+			buff[i].q /= 4095.0;
     }
 
 	} else {

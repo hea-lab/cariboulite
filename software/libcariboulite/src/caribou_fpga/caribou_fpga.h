@@ -87,6 +87,9 @@ int caribou_fpga_get_versions (caribou_fpga_st* dev, caribou_fpga_versions_st *v
 int caribou_fpga_get_errors (caribou_fpga_st* dev, uint8_t *err_map);
 
 // I/O Controller
+int caribou_fpga_set_trx_state_rx (caribou_fpga_st* dev, uint8_t debug_mode, caribou_fpga_io_ctrl_rfm_en rfm);
+int caribou_fpga_set_trx_state_tx (caribou_fpga_st* dev, uint8_t debug_mode, caribou_fpga_io_ctrl_rfm_en rfm);
+
 int caribou_fpga_set_io_ctrl_mode (caribou_fpga_st* dev, uint8_t debug_mode, caribou_fpga_io_ctrl_rfm_en rfm);
 int caribou_fpga_get_io_ctrl_mode (caribou_fpga_st* dev, uint8_t *debug_mode, caribou_fpga_io_ctrl_rfm_en *rfm);
 

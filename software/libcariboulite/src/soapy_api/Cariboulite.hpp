@@ -105,7 +105,7 @@ public:
         /*******************************************************************
          * Channels API
          ******************************************************************/
-        size_t getNumChannels(const int direction) const { return 2; }
+        size_t getNumChannels(const int direction) const { return 1; }
         bool getFullDuplex(const int direction, const size_t channel) const { return (false); }
 
         /*******************************************************************

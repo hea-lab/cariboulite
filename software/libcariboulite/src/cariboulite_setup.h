@@ -11,7 +11,7 @@ extern "C" {
 #include "caribou_fpga/caribou_fpga.h"
 #include "at86rf215/at86rf215.h"
 //#include "rffc507x/rffc507x.h"
-#include "caribou_smi/caribou_smi.h"
+//#include "caribou_smi/caribou_smi.h"
 #include "io_utils/io_utils.h"
 #include "io_utils/io_utils_spi.h"
 #include "io_utils/io_utils_sys_info.h"

@@ -14,7 +14,6 @@
 #include <sys/ioctl.h>
 
 #include "cariboulite_radios.h"
-#include "cariboulite_events.h"
 #include "cariboulite_setup.h"
 
 
@@ -91,6 +90,7 @@ int cariboulite_dispose_radios(cariboulite_radios_st* radios)
     radios->radio_sub1g.active = false;
     radios->radio_6g.active = false;
 
+#if 0
     // If streams are active - destroy them
     if (radios->radio_sub1g.rx_stream_id != -1)
     {
@@ -116,6 +116,7 @@ int cariboulite_dispose_radios(cariboulite_radios_st* radios)
         radios->radio_6g.tx_stream_id = -1;
     }
     usleep(100000);
+#endif
 
     cariboulite_radio_state_st* rad_s1g = GET_RADIO_PTR(radios,cariboulite_channel_s1g);
     cariboulite_radio_state_st* rad_6g = GET_RADIO_PTR(radios,cariboulite_channel_6g);
@@ -528,23 +529,7 @@ typedef enum
 //=================================================
 bool cariboulite_wait_for_lock( cariboulite_radio_state_st* rad, bool *mod, bool *mix, int retries)
 {
-    bool mix_lock = true, mod_lock = true;
-#if 0
-    if (mix)
-    {
-        rffc507x_device_status_st stat = {0};
-        int relock_retries = retries;
-        do
-        {
-            rffc507x_readback_status(&rad->cariboulite_sys->mixer, NULL, &stat);
-            rffc507x_print_stat(&stat);
-            if (!stat.pll_lock) rffc507x_relock(&rad->cariboulite_sys->mixer);
-        } while (!stat.pll_lock && relock_retries--);
-
-        *mix = stat.pll_lock;
-        mix_lock = (bool)stat.pll_lock;
-    }
-#endif
+    bool mod_lock = true;
 
     if (mod)
     {
@@ -561,7 +546,7 @@ bool cariboulite_wait_for_lock( cariboulite_radio_state_st* rad, bool *mod, bool
         mod_lock = (bool)cfg.pll_locked;
     }
 
-    return mix_lock && mod_lock;
+    return mod_lock;
 }
 
 //=================================================
@@ -687,19 +672,13 @@ int cariboulite_activate_channel(cariboulite_radios_st* radios,
         at86rf215_radio_set_state( &rad->cariboulite_sys->modem, 
                                 GET_CH(channel),
                                 at86rf215_radio_state_cmd_rx);
+        rad->state = at86rf215_radio_state_cmd_rx;
         ZF_LOGD("Setup Modem state cmd_rx");
+		caribou_fpga_set_trx_state_rx (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_low_power);
     }
     else if (rad->channel_direction == cariboulite_channel_dir_tx)
     {
-        // if its an LO frequency output from the mixer - no need for modem output
-        // LO applicable only to the channel with the mixer
-        if (rad->lo_output && channel == cariboulite_channel_6g)
-        {
-            // here we need to configure lo bypass on the mixer
-            //rffc507x_output_lo(&rad->cariboulite_sys->mixer, 1);
-        }
-        // otherwise we need the modem
-        else
+		caribou_fpga_set_trx_state_tx (&rad->cariboulite_sys->fpga, 0, caribou_fpga_io_ctrl_rfm_low_power);
         {
 #if 0
 
@@ -733,7 +712,6 @@ int cariboulite_activate_channel(cariboulite_radios_st* radios,
 		    at86rf215_get_iq_if_cfg(&rad->cariboulite_sys->modem, 
                                         &cfg,
                                         true);
-		    sleep(1);
 	    }
 
         }

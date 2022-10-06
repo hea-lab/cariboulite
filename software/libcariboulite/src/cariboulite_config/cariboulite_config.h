@@ -11,7 +11,7 @@ extern "C" {
 #include "caribou_fpga/caribou_fpga.h"
 #include "at86rf215/at86rf215.h"
 //#include "rffc507x/rffc507x.h"
-#include "caribou_smi/caribou_smi.h"
+//#include "caribou_smi/caribou_smi.h"
 #include "io_utils/io_utils.h"
 #include "io_utils/io_utils_spi.h"
 #include "io_utils/io_utils_sys_info.h"
@@ -86,7 +86,7 @@ typedef struct cariboulite_st_t
 
     // Chip level
     io_utils_spi_st spi_dev;
-    caribou_smi_st smi;
+    //caribou_smi_st smi;
     //ustimer_t timer;
 
     // Peripheral chips

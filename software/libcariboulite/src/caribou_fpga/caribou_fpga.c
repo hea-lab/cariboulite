@@ -18,6 +18,8 @@
 #define IOC_SYS_CTRL_MANU_ID        2
 #define IOC_SYS_CTRL_SYS_ERR_STAT   3
 #define IOC_SYS_CTRL_SYS_SOFT_RST   4
+#define IOC_SYS_CTRL_TRX_STATE_RX   5
+#define IOC_SYS_CTRL_TRX_STATE_TX   6
 
 #define IOC_IO_CTRL_MODE            1
 #define IOC_IO_CTRL_DIG_PIN         2
@@ -226,6 +228,36 @@ int caribou_fpga_set_io_ctrl_mode (caribou_fpga_st* dev, uint8_t debug_mode, car
     };
 
     uint8_t mode = (debug_mode << 0) | (rfm&0x7)<<2;
+    return caribou_fpga_spi_transfer (dev, (uint8_t*)(&oc), &mode);
+}
+
+int caribou_fpga_set_trx_state_tx (caribou_fpga_st* dev, uint8_t debug_mode, caribou_fpga_io_ctrl_rfm_en rfm)
+{
+    CARIBOU_FPGA_CHECK_DEV(dev,"caribou_fpga_set_trx_state_tx");
+
+    caribou_fpga_opcode_st oc =
+    {
+        .rw  = caribou_fpga_rw_write,
+        .mid = caribou_fpga_mid_sys_ctrl,
+        .ioc = IOC_SYS_CTRL_TRX_STATE_TX
+    };
+
+    uint8_t mode = 0;
+    return caribou_fpga_spi_transfer (dev, (uint8_t*)(&oc), &mode);
+}
+
+int caribou_fpga_set_trx_state_rx (caribou_fpga_st* dev, uint8_t debug_mode, caribou_fpga_io_ctrl_rfm_en rfm)
+{
+    CARIBOU_FPGA_CHECK_DEV(dev,"caribou_fpga_set_trx_state_rx");
+
+    caribou_fpga_opcode_st oc =
+    {
+        .rw  = caribou_fpga_rw_write,
+        .mid = caribou_fpga_mid_sys_ctrl,
+        .ioc = IOC_SYS_CTRL_TRX_STATE_RX
+    };
+
+    uint8_t mode = 0;
     return caribou_fpga_spi_transfer (dev, (uint8_t*)(&oc), &mode);
 }
 

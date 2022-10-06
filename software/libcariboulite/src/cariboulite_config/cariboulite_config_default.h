@@ -38,10 +38,6 @@ extern "C" {
                         .sck = CARIBOULITE_SCK,                         \
                         .initialized = 0,                               \
                     },                                                  \
-                    .smi =                                              \
-                    {                                                   \
-                        .initialized = 0,                               \
-                    },                                                  \
                     .ice40 =                                            \
                     {                                                   \
                         .cs_pin = CARIBOULITE_FPGA_SS,                  \

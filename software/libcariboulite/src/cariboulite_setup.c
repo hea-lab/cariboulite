@@ -11,8 +11,7 @@
 #include <errno.h>
 
 #include "cariboulite_setup.h"
-//#include "cariboulite_events.h"
-#include "cariboulite_fpga_firmware.h"
+//#include "cariboulite_fpga_firmware.h"
 
 void print_siginfo(siginfo_t *si)
 {
@@ -246,18 +245,18 @@ int cariboulite_configure_fpga (cariboulite_st* sys, cariboulite_firmware_source
             error = 1;
         }
     }
-    else if (src == cariboulite_firmware_source_blob)
-    {
-        ZF_LOGI("Configuring the FPGA a internal firmware blob");
-        // push in the firmware / bitstream
-        res = latticeice40_configure_from_buffer(&sys->ice40, cariboulite_firmware, sizeof(cariboulite_firmware));
-        if (res < 0)
-        {
-            ZF_LOGE("lattice ice40 configuration failed");
-            // do not exit the function - releasing resources is needed anyway
-            error = 1;
-        }
-    }
+    //else if (src == cariboulite_firmware_source_blob)
+    //{
+    //    ZF_LOGI("Configuring the FPGA a internal firmware blob");
+    //    // push in the firmware / bitstream
+    //    res = latticeice40_configure_from_buffer(&sys->ice40, cariboulite_firmware, sizeof(cariboulite_firmware));
+    //    if (res < 0)
+    //    {
+    //        ZF_LOGE("lattice ice40 configuration failed");
+    //        // do not exit the function - releasing resources is needed anyway
+    //        error = 1;
+    //    }
+    //}
     else
     {
         ZF_LOGE("lattice ice40 configuration source is invalid");

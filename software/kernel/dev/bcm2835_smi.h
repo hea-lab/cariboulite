@@ -149,6 +149,12 @@ ssize_t bcm2835_smi_user_dma(
 
 struct bcm2835_smi_instance *bcm2835_smi_get(struct device_node *node);
 
+int bcm2835_smi_tx_start(const char*, size_t);
+int bcm2835_smi_rx_start(void);
+int bcm2835_smi_rx_stop(void);
+int bcm2835_smi_tx_stop(void);
+int bcm2835_smi_reg_cb(int (*f)(uint32_t *samples, int nb_samples, uint64_t ts_first_sample));
+
 #endif /* __KERNEL__ */
 
 /****************************************************************

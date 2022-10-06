@@ -60,11 +60,11 @@ endif(CMAKE_COMPILER_IS_GNUCXX)
 SOAPY_SDR_MODULE_UTIL(
         TARGET SoapyMySdr
     SOURCES 
-        src/soapy_api/SoapyCariboulite.cpp 
-        src/soapy_api/Cariboulite.cpp
-        src/soapy_api/Cariboulite.hpp
-        src/soapy_api/CaribouliteStream.cpp
+        src/soapy_api/CaribouliteRegistration.cpp
+        src/soapy_api/CaribouliteSetting.cpp 
         src/soapy_api/CaribouliteSession.cpp
+        src/soapy_api/CaribouliteStream.cpp
+        src/soapy_api/Cariboulite.hpp
     LIBRARIES cariboulite
 )
 

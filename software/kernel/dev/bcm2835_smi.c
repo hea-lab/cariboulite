@@ -812,10 +812,10 @@ static void smi_get_default_settings(struct bcm2835_smi_instance *inst)
 	settings->data_width = SMI_WIDTH_8BIT;
 	settings->pack_data = true;
 
-	settings->read_setup_time = 1;
-	settings->read_hold_time = 0;
-	settings->read_pace_time = 0;
-	settings->read_strobe_time = 2;
+	settings->read_setup_time = 0;
+	settings->read_hold_time = 2;
+	settings->read_pace_time = 2;
+	settings->read_strobe_time = 4;
 
 	settings->write_setup_time = settings->read_setup_time;
 	settings->write_hold_time = settings->read_hold_time;
@@ -1697,14 +1697,143 @@ static int debug = 0;
 #define STATE_TRAILER_CRC_MSB 5
 #define STATE_TRAILER_CRC_LSB 6
 
+static int state = STATE_HEADER_CA;
+static int remaining_data = 0;
+static int prevseqnum = -1;
+
+int (*bam_cb)(uint32_t *samples, int nb_samples, uint64_t ts_first_sample) = NULL;
+
+
+int bcm2835_smi_reg_cb(int (*f)(uint32_t *samples, int nb_samples, uint64_t ts_first_sample)) {
+
+	bam_cb = f;
+
+	return 0;
+}
 
 extern int bam(uint32_t *samples, int nb_samples, uint64_t ts_first_sample);
+static bool done = false;
+static int total = 0;
+static int bad_crc = 0;
 
 static void verify_all(uint8_t id, uint8_t *buf, int len) {
-	printk("verify_all1 %x %x %x %x", buf[0], buf[1], buf[2], buf[3]);
-	printk("verify_all2 %x %x %x %x", buf[4], buf[5], buf[6], buf[7]);
-	return;
-#if 1
+	int i;
+	static int idx = 0;
+	uint16_t crc, res;
+
+	//if (!done) { 
+	//	//dump_hex(buf, len);
+	//	done = true;
+	//} else {
+	//	return;
+	//}
+
+
+	//printk("verify_all:B");
+	//printk("");
+	//dump_hex(buf, 16);
+	//printk("verify_all:M");
+	//printk("");
+	//dump_hex(&buf[len-16], 16);
+	//printk("verify_all:E");
+	//printk("");
+
+	for (i = 0; i< len; i++) {
+		if (state == STATE_HEADER_CA) {
+			if (buf[i] == 0xCA) {
+				memset(bami, 0, sizeof(bami));
+				state = STATE_HEADER_FE;
+				bami[0] = 0xCA;
+			} else {
+				state = STATE_HEADER_CA;
+			}
+		} else if (state == STATE_HEADER_FE) {
+			if (buf[i] == 0xFE) {
+				state = STATE_PAYLOAD;
+				remaining_data = 256*4 + 8 + 2;
+				bami[1] = 0xFE;
+				idx = 2;
+			} else {
+				state = STATE_HEADER_CA;
+			}
+		} else if (state == STATE_PAYLOAD) {
+			if (remaining_data > 0) {
+				if ((len - i) >= remaining_data) {
+					memcpy(&bami[idx], &buf[i], remaining_data); 
+					idx += remaining_data;
+					i += (remaining_data - 1);
+					remaining_data = 0;
+				} else {
+					remaining_data --;
+					bami[idx] = buf[i];
+					idx ++;
+				}
+			} else {
+				int curseqnum = (bami[2] << 8) + bami[3]; 
+			//	printk("curseqnum %d prevseqnum %d\n", curseqnum, prevseqnum);
+
+				if (prevseqnum != -1) {
+					if ((prevseqnum + 1) == curseqnum) {
+
+					} else {
+						printk("curseqnum %d prevseqnum %d\n", curseqnum, prevseqnum);
+					}
+				} else {
+				//	dump_hex(buf, 256*4+16);
+				}
+
+				//dump_hex(bami, 8);
+
+				state = STATE_TRAILER_CO;
+
+				if (buf[i] == 0xC0) {
+					state = STATE_TRAILER_DE;
+				} else {
+				if (i>8) {
+				dump_hex(&buf[i-8], 64);
+				}
+					printk("failed CO");
+					state = STATE_HEADER_CA;
+				}
+			}
+		} else if (state == STATE_TRAILER_DE) {
+			if (buf[i] == 0xDE) {
+				state = STATE_TRAILER_CRC_MSB;
+			} else {
+				if (i>8) {
+				dump_hex(&buf[i-8], 64);
+				}
+				printk("failed DE");
+				state = STATE_HEADER_CA;
+			}
+		} else if (state == STATE_TRAILER_CRC_MSB) {
+			state = STATE_TRAILER_CRC_LSB;
+			crc = buf[i] << 8;
+		} else if (state == STATE_TRAILER_CRC_LSB) {
+			crc |= buf[i];
+			state = STATE_HEADER_CA;
+
+			//printk("CRC %x", crc);
+			total ++;
+
+			res = crc_ccitt_false(0xffff, &bami[2+2+8], 256*4);
+			if (res != crc) {
+				printk("CRC failed (%d) %x %x", i, res, crc);
+				bad_crc ++;
+			//	dump_hex(&bami[2+2+8], 256*4);
+			} else {
+				uint64_t timestamp = ((uint64_t) bami[4] << 56) + ((uint64_t)bami[5] << 48) + ((uint64_t)bami[6] << 40) + ((uint64_t)bami[7] << 32) + (bami[8] << 24) + (bami[9] << 16) + (bami[10] << 8) + bami[11] ;
+				//dump_hex(&bami[2+2+8], 16);
+				int a = bam_cb((uint32_t*)&bami[2+2+8], 256, timestamp);
+				printk("CRC SUCCESS");
+			}
+		}
+	}
+	//printk("verify_all1 %x %x %x %x", buf[0], buf[1], buf[2], buf[3]);
+	//printk("verify_all2 %x %x %x %x", buf[4], buf[5], buf[6], buf[7]);
+	//printk("verify_all:E %d %d", bad, total);
+	//return;
+#if 0
 
 	int i;
 	static int state = STATE_HEADER_CA;
@@ -1904,6 +2033,12 @@ static void dma_cb2(void *params) {
 
 #if 1
 	if (b == &buf_virt[0x4000]) {
+		verify_all(dma_ctxt->wr_idx, &buf_virt[0], 0x40000);
+	} else {
+		verify_all(dma_ctxt->wr_idx, &buf_virt[0x40000], 0x40000);
+	}
+#else
+	if (b == &buf_virt[0x4000]) {
 		if (last_b == &buf_virt[0x5000] && (dt >= 15 || dt <= 17)) {
 			//printk("ping %d", dt);
 		} else {
@@ -1933,7 +2068,7 @@ static void dma_cb2(void *params) {
 	dma_ctxt->wr_idx += 1;
 	
 	if ((dma_ctxt->wr_idx % 500) == 0) {
-		printk("so far so good %lld %d %x", dma_ctxt->bam, bad, bami[0]);
+		printk("so far so good %lld %d %d", dma_ctxt->bam, bad_crc,total);
 		dma_ctxt->wr_idx = 0;
 		dma_ctxt->bam += 1;
 	}
@@ -1962,7 +2097,7 @@ static void bcm2835_dma_start_desc(struct bcm2835_chan *c)
 
 int bcm2835_smi_start_tx(size_t);
 //int my_testd(struct bcm2835_smi_instance *inst)
-int my_test(const char*buf, size_t count)
+int bcm2835_smi_tx_start(const char*buf, size_t count)
 {
 	smi_set_address(inst, 6);
 
@@ -2164,7 +2299,7 @@ int my_test(const char*buf, size_t count)
 }
 
 //int bcm2835_smi_start(struct bcm2835_smi_instance *inst)
-int bcm2835_smi_start(void)
+int bcm2835_smi_rx_start(void)
 {
     bad = 0;
     seqnum = -1;
@@ -2173,6 +2308,10 @@ int bcm2835_smi_start(void)
     inst->dma_ctxt.wr_idx = 0;
     inst->dma_ctxt.bam = 0;
     inst->dma_ctxt.inst = inst;
+    state = STATE_HEADER_CA;
+    remaining_data = 0;
+    prevseqnum = -1;
+    done = false;
 
 #if 1
     inst->desc2 = bcm2835_dma_prep_dma_memcpy(inst->dma_chan2, DMA_PREP_INTERRUPT|DMA_CTRL_ACK);
@@ -2440,8 +2579,14 @@ err:
 	return err;
 }
 
-EXPORT_SYMBOL(bcm2835_smi_start);
-EXPORT_SYMBOL(my_test);
+int bcm2835_smi_rx_stop(void);
+int bcm2835_smi_tx_stop(void);
+
+EXPORT_SYMBOL(bcm2835_smi_rx_start);
+EXPORT_SYMBOL(bcm2835_smi_tx_start);
+EXPORT_SYMBOL(bcm2835_smi_rx_stop);
+EXPORT_SYMBOL(bcm2835_smi_tx_stop);
+EXPORT_SYMBOL(bcm2835_smi_reg_cb);
 
 /****************************************************************************
 *
@@ -2463,6 +2608,29 @@ static int bcm2835_smi_remove(struct platform_device *pdev)
 	clk_disable_unprepare(inst->clk);
 
 	dev_info(dev, "SMI device removed - OK");
+	return 0;
+}
+
+int bcm2835_smi_rx_stop(void)
+{
+	printk("smi_disable");
+	smi_disable(inst, DMA_DEV_TO_MEM);
+	printk("term dma_chan 1");
+	dmaengine_terminate_async(inst->dma_chan);
+	printk("term dma_chan 2");
+	dmaengine_terminate_async(inst->dma_chan2);
+	smi_setup_regs(inst);
+	return 0;
+}
+
+int bcm2835_smi_tx_stop(void)
+{
+	printk("smi_disable");
+	smi_disable(inst, DMA_MEM_TO_DEV);
+	printk("term dma_chan 1");
+	dmaengine_terminate_sync(inst->dma_chan);
+	printk("term dma_chan 2");
+	dmaengine_terminate_sync(inst->dma_chan2);
 	return 0;
 }
 

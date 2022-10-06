@@ -60,7 +60,7 @@
 //
 //
 module afifo #(
-    parameter   DSIZE = 32, ASIZE = 9, ENABLE_FILLING_LEVEL = 0,
+    parameter   DSIZE = 32, ASIZE = 9
 )
 (
     input   wire            i_wclk, i_wrst_n, i_wr,
@@ -69,7 +69,7 @@ module afifo #(
     output  reg [ASIZE:0]   o_wfilling_level,
     input   wire            i_rclk, i_rrst_n, i_rd,
     output  reg [DSIZE-1:0] o_rdata,
-    output  reg         o_rempty,
+    output  reg         o_rempty
 );
 
     localparam  DW = DSIZE, AW = ASIZE;
@@ -136,31 +136,28 @@ module afifo #(
     end
 
 
-    if (ENABLE_FILLING_LEVEL) begin
+	//
+	// Calculate just how full we are
+	//
+	// We'll allow this to be a clock or two out of date, allowing the
+	// feeding circuit to set a threshold to stop with.
+	reg [AW:0]  rq2_wbin;
+	integer g2b;
+	always @(*)
+	begin
+		rq2_wbin[AW] = rq2_wgray[AW];
+		for(g2b=AW-1; g2b>=0; g2b=g2b-1)
+		begin
+			rq2_wbin[g2b] = rq2_wgray[g2b] ^ rq2_wbin[g2b+1];
+		end
+	end
 
-        //
-        // Calculate just how full we are
-        //
-        // We'll allow this to be a clock or two out of date, allowing the
-        // feeding circuit to set a threshold to stop with.
-        reg [AW:0]  rq2_wbin;
-        integer g2b;
-        always @(*)
-        begin
-            rq2_wbin[AW] = rq2_wgray[AW];
-            for(g2b=AW-1; g2b>=0; g2b=g2b-1)
-            begin
-                rq2_wbin[g2b] = rq2_wgray[g2b] ^ rq2_wbin[g2b+1];
-            end
-        end
-
-        always @(posedge i_rclk or negedge i_rrst_n) begin
-            if (!i_rrst_n) begin
-                o_wfilling_level <= 0;
-            end else
-                o_wfilling_level <= rq2_wbin - rbin;
-        end
-    end
+	always @(posedge i_rclk or negedge i_rrst_n) begin
+		if (!i_rrst_n) begin
+			o_wfilling_level <= 0;
+		end else
+			o_wfilling_level <= rq2_wbin - rbin;
+	end
 
     // Write to the FIFO on a clock
 
@@ -209,9 +206,6 @@ module afifo #(
         { rbin, rgray } <= { rbinnext, rgraynext };
 
 
-    always @(posedge i_rclk)
-        o_rdata = mem[raddr];
-
     // Memory read address Gray code and pointer calculation
     assign  raddr = rbin[AW-1:0];
 
@@ -230,6 +224,9 @@ module afifo #(
     // read FLOP in the next processing stage (somewhere else)
     //
     //assign    o_rdata = mem[raddr];
-
+	
+	// this is a workaround for synthesis issue 
+    always @(negedge i_rclk)
+        o_rdata = mem[raddr];
     
 endmodule

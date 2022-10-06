@@ -5,9 +5,11 @@ module rx_framer #(
     input               i_reset,
     input               i_clk,
     input               i_enable,
+    input [3:0]         i_data_tag,
     input [31:0]        i_data,
     input               i_fifo_full,
 
+    output reg          o_led,
     output reg          o_fifo_push,
     output reg [31:0]   o_fifo_data
 );
@@ -41,76 +43,101 @@ begin
 end
 endfunction
 
-    // Internal FSM States
-    localparam  [2:0] STATE_HEADER  = 3'b000,
-        STATE_TIMESTAMP_MSB   = 3'b001,
-        STATE_TIMESTAMP_LSB   = 3'b011,
-        STATE_PAYLOAD         = 3'b111,
-        STATE_FCS             = 3'b110;
+// Internal FSM States
+localparam  [2:0] STATE_HEADER  = 3'b000,
+    STATE_TIMESTAMP_MSB   = 3'b001,
+    STATE_TIMESTAMP_LSB   = 3'b011,
+    STATE_PAYLOAD         = 3'b111,
+    STATE_FCS             = 3'b110;
 
-    localparam [9:0] NB_SAMPLES    = 10'd256;
+localparam [9:0] NB_SAMPLES    = 10'd256;
 
-    reg[14:0]   r_seqnum;
-    reg[63:0]   r_timestamp;
-    reg[9:0]    r_count;
-    reg[2:0]    r_state;
-    reg[15:0]   r_crc_in;
+reg[14:0]   r_seqnum;
+reg[63:0]   r_timestamp;
+reg[9:0]    r_count;
+reg[2:0]    r_state;
+reg[15:0]   r_crc_in;
 
-    // Main Process
-    always @(posedge i_clk)
-    begin
+initial begin
+    r_state = STATE_HEADER;
+    r_count = (NB_SAMPLES - 1);
+    r_seqnum = 0;
+    r_timestamp = 0;
+    o_fifo_push = 1'b0;
+    o_led = 0;
+end
+// Main Process
+always @(posedge i_clk)
+begin
 
-        if (i_reset) begin
-            r_state <= STATE_HEADER;
-            r_count <= (NB_SAMPLES - 1);
-            r_seqnum <= 0;
-            r_timestamp <= 0;
-            o_fifo_push <= 1'b0;
-        end else if (i_fifo_full == 1'b0) begin
-            case (r_state)
-                STATE_HEADER: begin
-                    r_seqnum <= r_seqnum + 1;
-                    o_fifo_push <= 1'b1;
-                    o_fifo_data <= {16'hCAFE, 1'b0, r_seqnum};
-                    r_state <= STATE_TIMESTAMP_MSB;
+    if (i_reset) begin
+        r_state <= STATE_HEADER;
+        r_count <= (NB_SAMPLES - 1);
+        r_seqnum <= 0;
+        r_timestamp <= 0;
+        o_fifo_push <= 1'b0;
+    end else if (i_fifo_full == 1'b0) begin
+        if (i_data_tag == 2) begin
+            if (r_state == STATE_HEADER) begin
+                r_seqnum <= r_seqnum + 1;
+                o_fifo_push <= 1'b1;
+                o_fifo_data <= {16'hCAFE, 1'b0, r_seqnum};
+                r_state <= STATE_TIMESTAMP_MSB;
+            end else begin
+                /* discard */
+                o_fifo_push <= 1'b0;
+            end
+        end else if (i_data_tag == 4) begin
+            if (r_state == STATE_TIMESTAMP_MSB) begin
+                o_fifo_push <= 1'b1;
+                o_fifo_data <= r_timestamp[63:32];
+                r_state <= STATE_TIMESTAMP_LSB;
+            end else begin
+                /* discard */
+                o_fifo_push <= 1'b0;
+            end
+        end else if (i_data_tag == 6) begin
+            if (r_state == STATE_TIMESTAMP_LSB) begin
+                o_fifo_push <= 1'b1;
+                o_fifo_data <= r_timestamp[31:0];
+
+                r_count <= (NB_SAMPLES - 1);
+                r_crc_in <= 16'hffff;
+                r_state <= STATE_PAYLOAD;
+            end else begin
+                /* discard */
+                o_fifo_push <= 1'b0;
+            end
+        end else if (i_data_tag == 8) begin
+            if (r_state == STATE_FCS) begin
+                o_fifo_push <= 1'b1;
+                o_fifo_data <= {16'hC0DE, r_crc_in};
+                r_state <= STATE_HEADER;
+            end else begin
+                /* discard */
+                o_fifo_push <= 1'b0;
+            end
+        end else if (i_data_tag == 15) begin
+            if (r_state == STATE_PAYLOAD) begin
+                r_timestamp <= r_timestamp + TIMESTAMP_ACCURACY; /* 4Mhz => 250 ns */
+                o_fifo_push <= 1'b1;
+                o_fifo_data <= i_data;
+                r_crc_in <= crc16(r_crc_in, i_data);
+
+                if (r_count == 0) begin
+                    r_state <= STATE_FCS;
+                end else begin
+                    r_count <= r_count - 1;
                 end
-                STATE_TIMESTAMP_MSB: begin
-                    o_fifo_push <= 1'b1;
-                    o_fifo_data <= r_timestamp[63:32];
-                    r_state <= STATE_TIMESTAMP_LSB;
-                end
-                STATE_TIMESTAMP_LSB: begin
-                    o_fifo_push <= 1'b1;
-                    o_fifo_data <= r_timestamp[31:0];
-
-                    r_count <= (NB_SAMPLES - 1);
-                    r_state <= STATE_PAYLOAD;
-                    r_crc_in <= 16'hffff;
-                end
-                STATE_PAYLOAD: begin
-                    if (i_enable == 1'b0) begin
-                        r_timestamp <= r_timestamp + TIMESTAMP_ACCURACY; /* 4Mhz => 250 ns */
-                        o_fifo_push <= 1'b1;
-                        o_fifo_data <= i_data;
-                        r_crc_in <= crc16(r_crc_in, i_data);
-
-                        if (r_count == 0) begin
-                            r_state <= STATE_FCS;
-                        end else begin
-                            r_count <= r_count - 1;
-                        end
-                    end else begin
-                        o_fifo_push <= 1'b0;
-                    end
-                end
-                STATE_FCS: begin
-                    o_fifo_push <= 1'b1;
-                    o_fifo_data <= {16'hC0DE, r_crc_in};
-                    r_state <= STATE_HEADER;
-                end
-            endcase
+            end else begin
+                /* ya un probleme */
+                o_fifo_push <= 1'b0;
+            end
         end else begin
             o_fifo_push <= 1'b0;
         end
+    end else begin
+        o_fifo_push <= 1'b0;
     end
+end
 endmodule

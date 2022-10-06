@@ -53,6 +53,7 @@ module top(
    wire        w_fetch;
    wire        w_load;
    wire        w_soft_reset;
+   wire        w_trx_state_tx;
 
    //=========================================================================
    // INITIAL STATE
@@ -95,6 +96,7 @@ module top(
       .i_fetch_cmd (w_fetch),
       .i_load_cmd (w_load),
       .o_soft_reset (w_soft_reset),
+      .o_trx_state_tx (w_trx_state_tx),
    );
 
    //=========================================================================
@@ -161,7 +163,7 @@ module top(
       .NEG_TRIGGER(1'b0)            // The signal is negated in hardware
    ) iq_rx (
       .PACKAGE_PIN(i_iq_rx_p),
-      .INPUT_CLK (w_lvds_tx_clk),  // The I/O sampling clock with DDR
+      .INPUT_CLK (w_lvds_rx_clk),  // The I/O sampling clock with DDR
       .D_IN_0 ( w_lvds_rx_d1 ),    // the 0 deg data output
       .D_IN_1 ( w_lvds_rx_d0 ) );  // the 180 deg data output
 
@@ -192,10 +194,13 @@ module top(
    wire w_tx_clk;
    wire w_rx_clk;
 
-   wire [9:0] w_filling_level;
+   wire [9:0] w_tx_filling_level;
+   wire [9:0] w_rx_filling_level;
+   wire [3:0] w_data_tag;
 
    lvds_tx lvds_tx_inst(
       .i_reset (w_soft_reset),
+      .i_trx_state_tx (w_trx_state_tx),
       .i_ddr_clk (w_lvds_tx_clk),
       
       .o_ddr_data ({r_lvds_tx_d1, r_lvds_tx_d0}),
@@ -208,7 +213,7 @@ module top(
       .o_led1(o_led1),
    );
 
-    afifo #(.ENABLE_FILLING_LEVEL(1)) tx_fifo(
+    afifo tx_fifo(
        .i_wrst_n (!w_soft_reset),
        .i_wclk (w_clock_smi_tx),
        .i_wr (w_tx_fifo_push),
@@ -220,7 +225,7 @@ module top(
        .o_rdata (w_tx_fifo_pulled_data),
        .o_wfull (w_tx_fifo_full),
        .o_rempty (w_tx_fifo_empty),
-       .o_wfilling_level(w_filling_level)
+       .o_wfilling_level(w_tx_filling_level)
    );
 
    lvds_rx lvds_rx_inst(
@@ -230,13 +235,15 @@ module top(
 
       .o_enable (w_lvds_rx_enable),
       .o_data (w_lvds_rx_data),
-      .o_clk(w_rx_clk)
+      .o_clk(w_rx_clk),
+      .o_two_bits_cnt(w_data_tag)
    );
 
    rx_framer rx_framer(
        .i_reset(w_soft_reset),
-       .i_clk(w_rx_clk),
+       .i_clk(w_lvds_rx_clk),
 
+       .i_data_tag(w_data_tag),
        .i_enable(w_lvds_rx_enable),
        .i_data ({3'b000, w_lvds_rx_data[29:17], 3'b000, w_lvds_rx_data[13:1]}),
 
@@ -247,7 +254,7 @@ module top(
 
    afifo rx_fifo(
        .i_wrst_n (!w_soft_reset),
-       .i_wclk (r_clock_sys),
+       .i_wclk (w_lvds_rx_clk),
        .i_wr (w_rx_fifo_push),
        .i_wdata (w_rx_fifo_data),
        .i_rrst_n (!w_soft_reset),
@@ -257,6 +264,7 @@ module top(
        .o_rdata (w_rx_fifo_pulled_data),
        .o_wfull (w_rx_fifo_full),
        .o_rempty (w_rx_fifo_empty),
+       .o_wfilling_level(w_rx_filling_level)
    );
 
    smi_ctrl smi_ctrl_ins
@@ -284,21 +292,18 @@ module top(
       .i_smi_swe_srw (i_smi_swe_srw),
       .o_smi_data_out (w_smi_data_output),
       .i_smi_data_in (w_smi_data_input),
-      .o_smi_writing (w_smi_writing),
       .i_fifo_full (w_tx_fifo_full),
    );
 
    wire [2:0] w_smi_addr;
    wire [7:0] w_smi_data_output;
    wire [7:0] w_smi_data_input;
-   wire w_smi_writing;
 
    assign w_smi_addr = {i_smi_a3, i_smi_a2, i_smi_a1};
 
-   assign io_smi_data = (w_smi_writing)?w_smi_data_output:8'bZ;
+   assign io_smi_data = w_trx_state_tx ? 8'bZ : w_smi_data_output;
    assign w_smi_data_input = io_smi_data;
+   assign o_smi_dreq = w_trx_state_tx ? (w_tx_filling_level < 500) : (w_rx_filling_level > 3) ? 1 : 0;
 
-  /* LVDS TX and RX seem to run simultaneously, so we only need to deal TX */
-  assign o_smi_dreq = (w_filling_level < 500) ? 1 : 0;
 
 endmodule

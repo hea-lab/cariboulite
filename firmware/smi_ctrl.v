@@ -30,9 +30,6 @@ module smi_ctrl
         //output              o_smi_dreq,
         //input               i_smi_dreq_ack,
 
-        output reg          o_smi_writing,
-        input               i_fifo_full
-
         );
 
     //// MODULE SPECIFIC IOC LIST
@@ -104,15 +101,6 @@ module smi_ctrl
         b3 = 0;
     end
 
-    /* FIXME il faut peut etre utiliser l addresse  SMI */
-    always @(negedge i_smi_swe_srw or negedge i_smi_soe_se)
-    begin
-        if (i_smi_soe_se)
-            o_smi_writing = 0;
-        else
-            o_smi_writing = 1;
-    end
-
     always @(negedge swe_and_reset)
     begin
         if (i_reset) begin
@@ -151,9 +139,15 @@ module smi_ctrl
         if (i_reset) begin
             int_cnt_09 <= 5'd31;
         end else begin
-            w_fifo_pull_trigger <= !i_fifo_empty && (int_cnt_09 == 5'd7);
+            w_fifo_pull_trigger <= int_cnt_09 == 5'd7;
             int_cnt_09 <= int_cnt_09 - 8;
-            o_smi_data_out <= i_fifo_pulled_data[int_cnt_09:int_cnt_09-7];
+
+            /* If fifo is empty, trigger a CRC error to avoid data corruption */
+
+            if (i_fifo_empty)
+                o_smi_data_out <= 8'hDE;
+            else
+                o_smi_data_out <= i_fifo_pulled_data[int_cnt_09:int_cnt_09-7];
         end
     end
 

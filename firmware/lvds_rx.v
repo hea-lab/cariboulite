@@ -6,6 +6,7 @@ module lvds_rx
 
         output reg          o_clk,
         output reg          o_enable,
+        output reg [3:0]    o_two_bits_cnt,
         output reg [31:0]   o_data);
 
     // Internal FSM States
@@ -23,14 +24,13 @@ module lvds_rx
     reg [1:0]   r_state_if;
     reg [2:0]   r_phase_count;
     reg [31:0]  r_data;
-    reg         r_push;
 
     // Initial conditions
     initial begin
         r_state_if = state_idle;
-        r_push = 1'b0;
         r_phase_count = 3'b111;
         r_data = 0;
+        o_enable = 1'b0;
     end
 
     // Main Process
@@ -38,14 +38,11 @@ module lvds_rx
     begin
         if (i_reset) begin
             r_state_if <= state_idle;
-            r_push <= 1'b0;
             o_enable <= 1'b0;
             r_phase_count <= 3'b111;
             r_data <= 0;
             o_clk <= 0;
         end else begin
-            /* FIXME pourquoi introduire 1 delai d 1 cycle*/
-            o_enable <= r_push;
 
             o_clk <= !o_clk;
 
@@ -54,13 +51,17 @@ module lvds_rx
                     if (i_ddr_data == modem_i_sync ) begin
                         r_state_if <= state_i_phase;
                         r_data <= modem_i_sync;
+                        o_two_bits_cnt <= 0;
+                    end else begin
+                        o_two_bits_cnt <= o_two_bits_cnt + 1;
                     end
 
                     r_phase_count <= 3'b111;
-                    r_push <= 1'b0;
+                    o_enable <= 1'b0;
                 end
 
                 state_i_phase: begin
+                    o_two_bits_cnt <= o_two_bits_cnt + 1;
                     if (r_phase_count == 3'b000) begin
                         if (i_ddr_data == modem_q_sync ) begin
                             r_phase_count <= 3'b110;
@@ -76,11 +77,11 @@ module lvds_rx
                 end
 
                 state_q_phase: begin
+                    o_two_bits_cnt <= o_two_bits_cnt + 1;
                     if (r_phase_count == 3'b000) begin
-                        r_push <= 1'b1;
+                        o_enable <= 1'b1;
                         r_state_if <= state_idle;
                         o_data <= {r_data[29:0], i_ddr_data};
-                        //o_data <= 32'hAAAAAAAA;
 
                     end else begin
                         r_phase_count <= r_phase_count - 1;

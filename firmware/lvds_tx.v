@@ -4,6 +4,7 @@ module lvds_tx
         input               i_ddr_clk,
         input               i_empty,
         input [31:0]        i_data,
+        input               i_trx_state_tx,
 
         output reg          o_read,
         output reg          o_clk,
@@ -14,7 +15,7 @@ module lvds_tx
     );
 
     reg [3:0]  r_count;
-    reg [5:0]  r_icount;
+    reg [4:0]  r_icount;
     reg [31:0] r_data;
 
     initial begin
@@ -36,7 +37,12 @@ module lvds_tx
             o_clk <= 0; 
         end else begin
 
-            if (r_icount > 32) begin
+        if (i_trx_state_tx == 0) begin
+            r_icount <= 0;
+            r_data <= 0;
+        end
+
+            if (r_icount > 16) begin
                 o_clk <= ~o_clk;
 
                 /* TODO check magic numbers */

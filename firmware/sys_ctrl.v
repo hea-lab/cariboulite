@@ -10,6 +10,7 @@ module sys_ctrl
         input               i_load_cmd,
 
         output reg          o_soft_reset,
+        output reg          o_trx_state_tx,
         input [7:0]         i_error_list );
 
     // MODULE SPECIFIC IOC LIST
@@ -19,7 +20,10 @@ module sys_ctrl
         ioc_system_version  = 5'b00001,     // read only
         ioc_manu_id         = 5'b00010,     // read only
         ioc_error_state     = 5'b00011,     // read only
-        ioc_soft_reset      = 5'b00100;     // write only
+        ioc_soft_reset      = 5'b00100,     // write only
+
+        ioc_trx_state_rx      = 5'b00101,     // write only
+        ioc_trx_state_tx      = 5'b00110;     // write only
 
     //// MODULE SPECIFIC PARAMS
     //// ----------------------
@@ -32,6 +36,8 @@ module sys_ctrl
     // -----------------------
     reg [3:0] reset_count;
     reg reset_cmd;
+
+    initial o_trx_state_tx = 0;
 
     // MODULE MAIN PROCESS
     // -------------------
@@ -56,6 +62,8 @@ module sys_ctrl
             if (i_load_cmd == 1'b1) begin
                 case (i_ioc)
                     ioc_soft_reset: begin reset_cmd <= 1'b1; end
+                    ioc_trx_state_tx: begin o_trx_state_tx <= 1'b1; end
+                    ioc_trx_state_rx: begin o_trx_state_tx <= 1'b0; end
                 endcase
             end
         end else begin
